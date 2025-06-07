@@ -5,7 +5,7 @@ using Projektanker.Icons.Avalonia;
 
 namespace JsonContentTranslator;
 
-public static  class UiUtil
+public static class UiUtil
 {
     public static Button WithIconLeft(this Button control, string iconName)
     {
@@ -19,7 +19,7 @@ public static  class UiUtil
         };
 
         control.Content = stackPanelApplyFixes;
-        control.Margin = new Thickness(0,10,2,0);
+        control.Margin = new Thickness(0, 10, 2, 0);
 
         return control;
     }

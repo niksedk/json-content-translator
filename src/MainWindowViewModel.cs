@@ -1,14 +1,18 @@
 ﻿using Avalonia.Controls;
 using Avalonia.LogicalTree;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using JsonContentTranslator;
 using JsonContentTranslator.AutoTranslate;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace JsonTreeViewEditor
 {
@@ -17,27 +21,138 @@ namespace JsonTreeViewEditor
         [ObservableProperty] private ObservableCollection<JsonTreeNode> _jsonTree = new();
         [ObservableProperty] private JsonTreeNode? _selectedNode;
         [ObservableProperty] private ObservableCollection<JsonGridItem> _nodeProperties = new();
+        [ObservableProperty] private ObservableCollection<JsonGridItem> _selectedNodesProperties = new();
         [ObservableProperty] private JsonGridItem? _selectedNodeProperty;
         [ObservableProperty] private bool _isTextBoxEnabled;
+        [ObservableProperty] private bool _isLoaded;
+        [ObservableProperty] private bool _isNotLoaded;
+        [ObservableProperty] private bool _isTranslating;
         [ObservableProperty] private ObservableCollection<TranslationPair> _sourceLanguages;
         [ObservableProperty] private TranslationPair _selectedSourceLanguage;
         [ObservableProperty] private ObservableCollection<TranslationPair> _targetLanguages;
         [ObservableProperty] private TranslationPair _selectedTargetLanguage;
 
-        private JsonDocument? _document;
-        private string? _fileName;
-        Dictionary<string, JsonGridItem> _lookupBaseDictionary;
-        Dictionary<string, JsonGridItem> _lookupTranslationDictionary;
-
+        public Window? Window { get; set; }
         public TreeView JsonTreeView { get; internal set; }
+        public DataGrid JsonDataGrid { get; internal set; }
+        public string Title { get; internal set; }
+
+        private JsonDocument? _document;
+        private string? _baseFileName;
+        private string? _translationFileName;
+        private Dictionary<string, JsonGridItem> _lookupBaseDictionary;
+        private Dictionary<string, JsonGridItem> _lookupTranslationDictionary;
+        private IAutoTranslator _autoTranslator;
+
 
         public MainWindowViewModel()
         {
+            _autoTranslator = new GoogleTranslateV1(); 
+
             _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
             _lookupTranslationDictionary = new Dictionary<string, JsonGridItem>();
 
             SourceLanguages = new ObservableCollection<TranslationPair>(GoogleTranslateV1.GetTranslationPairs());
+            SelectedSourceLanguage = SourceLanguages.FirstOrDefault(x => x.Code == "en") ?? SourceLanguages[0];
+
             TargetLanguages = new ObservableCollection<TranslationPair>(GoogleTranslateV1.GetTranslationPairs());
+            SelectedTargetLanguage = TargetLanguages[0];
+
+            JsonTreeView = new TreeView();
+            JsonDataGrid = new DataGrid();
+
+            Title = "Json Content Translator 1.0";
+            IsNotLoaded = true; 
+        }
+
+        [RelayCommand]
+        public async Task TranslateSelectedItems()
+        {
+            var selectedItems = JsonDataGrid.SelectedItems.OfType<JsonGridItem>().ToList();
+            if (selectedItems.Count == 0 || SelectedSourceLanguage == null || SelectedTargetLanguage == null)
+            {
+                return;
+            }
+
+            IsTranslating = true;
+
+            foreach (var item in selectedItems)
+            {
+                if (string.IsNullOrEmpty(item.ValueOriginal))
+                {
+                    continue; // Skip items that are already translated or empty
+                }
+
+                var translation = await _autoTranslator.Translate(item.ValueOriginal, SelectedSourceLanguage.Code, SelectedTargetLanguage.Code, default);
+                item.ValueTranslation = translation;
+            }
+            IsTranslating = false;
+        }
+
+        [RelayCommand]
+        public async Task OpenBaseAndTranslation()
+        {
+            var storageProvider = Window!.StorageProvider;
+
+            // Define file type filter for JSON files
+            var jsonFileType = new FilePickerFileType("JSON Files")
+            {
+                Patterns = new[] { "*.json" },
+                MimeTypes = new[] { "application/json" }
+            };
+
+            // Open first file (base)
+            var baseFiles = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Select base/source JSON file",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { jsonFileType }
+            });
+
+            if (baseFiles.Count > 0)
+            {
+                LoadJsonBase(baseFiles[0].Path.LocalPath);
+
+                // Open second file (translation)
+                var translationFiles = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    Title = "Select translation JSON File",
+                    AllowMultiple = false,
+                    FileTypeFilter = new[] { jsonFileType }
+                });
+
+                if (translationFiles.Count > 0)
+                {
+                    LoadJsonTranslation(translationFiles[0].Path.LocalPath);
+                }
+            }
+        }
+
+        [RelayCommand]
+        public async Task SaveJson()
+        {
+            var storageProvider = Window!.StorageProvider;
+
+            // Define file type filter for JSON files
+            var jsonFileType = new FilePickerFileType("JSON Files")
+            {
+                Patterns = new[] { "*.json" },
+                MimeTypes = new[] { "application/json" }
+            };
+
+            // Open save file dialog
+            var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save JSON File",
+                DefaultExtension = "json",
+                SuggestedFileName = Path.GetFileName(_translationFileName),
+                FileTypeChoices = new[] { jsonFileType }
+            });
+
+            if (file != null)
+            {
+                SaveJson(file.Path.LocalPath);
+            }
         }
 
         partial void OnSelectedNodeChanged(JsonTreeNode? value)
@@ -47,7 +162,7 @@ namespace JsonTreeViewEditor
 
         public void LoadJsonBase(string filePath)
         {
-            _fileName = filePath;
+            _baseFileName = filePath;
             var json = File.ReadAllText(filePath);
             _document = JsonDocument.Parse(json);
             _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
@@ -59,21 +174,65 @@ namespace JsonTreeViewEditor
 
         public void LoadJsonTranslation(string filePath)
         {
+            _translationFileName = filePath;
             var json = File.ReadAllText(filePath);
             var document = JsonDocument.Parse(json);            
             _lookupTranslationDictionary = new Dictionary<string, JsonGridItem>();  
             var root = ParseJson(_lookupTranslationDictionary, document.RootElement, "Root");
             var jsonTree = new List<JsonTreeNode>();
             SetTranslationValues(JsonTree, jsonTree);
+            IsLoaded = true;
+            IsNotLoaded = false;
+
+            if (Window != null)
+            {
+                Window.Title = $"{Window.Title} - {Path.GetFileName(_baseFileName)} -> {Path.GetFileName(_translationFileName)}";
+            }
+
+            SelectedNode = JsonTree.FirstOrDefault();
+            if (SelectedNode != null)
+            {
+                SelectedNodeProperty = SelectedNode.Properties.FirstOrDefault();
+            }
+
+            // Get language from "cultureName"
+            var cultureName = root.GetValue("cultureName");
+            if (!string.IsNullOrEmpty(cultureName))
+            {
+                var codes = cultureName.Split('-');
+                if (codes.Length > 0)
+                {
+                    cultureName = codes[0]; // Use the first part of the culture name
+                }
+
+                var newLanguage = TargetLanguages.FirstOrDefault(x => x.Code.StartsWith(cultureName));
+                if (newLanguage != null)
+                {
+                    SelectedTargetLanguage = newLanguage;
+                    return; // Exit early if we found a matching language
+                }
+            }
+
+            // try to auto-detect language from the text
+            var text = root.GetText();
+            var languageCode = LanguageAutoDetect.AutoDetectGoogleLanguageOrNull2(text);
+            if (languageCode != null && languageCode != SelectedTargetLanguage.Code)
+            {
+                var newLanguage = TargetLanguages.FirstOrDefault(x => x.Code.StartsWith(languageCode));
+                if (newLanguage != null)
+                {
+                    SelectedTargetLanguage = newLanguage;
+                }
+            }
         }
 
         private void SetTranslationValues(ObservableCollection<JsonTreeNode> baseLanguage, List<JsonTreeNode> translation)
         {
             foreach (var item in _lookupBaseDictionary.Values)
             {
-                if (_lookupTranslationDictionary.TryGetValue(item.Path, out var trnslationItem))
+                if (_lookupTranslationDictionary.TryGetValue(item.Path.ToLowerInvariant(), out var translationItem))
                 {
-                    item.ValueTranslation = trnslationItem.ValueOriginal;
+                    item.ValueTranslation = translationItem.ValueOriginal;
                 }
             }
         }
@@ -93,7 +252,7 @@ namespace JsonTreeViewEditor
         {
             var node = new JsonTreeNode
             {
-                DisplayName = name,
+                DisplayName = name.CapitalizeFirstLetter(),
                 Element = element,
                 ValueKind = element.ValueKind,
             };
@@ -115,9 +274,9 @@ namespace JsonTreeViewEditor
                             prop.Value.ValueKind == JsonValueKind.False)
                         {
                             var gridItem = new JsonGridItem(node, element, prop);
-                            if (!lookupDictionary.ContainsKey(gridItem.Path))
+                            if (!lookupDictionary.ContainsKey(gridItem.Path.ToLowerInvariant()))
                             {
-                                lookupDictionary.Add(gridItem.Path, gridItem);
+                                lookupDictionary.Add(gridItem.Path.ToLowerInvariant(), gridItem);
                             }
 
                             node.Properties.Add(gridItem);

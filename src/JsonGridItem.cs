@@ -1,5 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using System;
+using JsonContentTranslator.AutoTranslate;
 using System.Text.Json;
 
 namespace JsonTreeViewEditor
@@ -8,7 +8,6 @@ namespace JsonTreeViewEditor
     {
         [ObservableProperty] private string? _valueOriginal;
         [ObservableProperty] private string? _valueTranslation;
-        [ObservableProperty] private bool _isDirty;
 
         public string DisplayName { get; set; }
         public string Path { get; set; }
@@ -19,31 +18,16 @@ namespace JsonTreeViewEditor
         // Store the original value for comparison
         public string? OriginalValue { get; private set; }
 
-        // Event to notify when value changes
-        public event EventHandler<JsonGridItem>? ValueChanged;
-
         public JsonGridItem(JsonContentTranslator.JsonTreeNode node, JsonElement element, JsonProperty prop)
         {
-            DisplayName = prop.Name;
-            Path = $"{node.DisplayName}.{prop.Name}";
+            DisplayName = prop.Name.CapitalizeFirstLetter();
+            Path = $"{node.DisplayName}.{prop.Name}".ToLowerInvariant();
             ValueOriginal = prop.Value.GetString();
             ValueTranslation = string.Empty;
-            OriginalValue = ValueTranslation;
+            OriginalValue = ValueOriginal;
             JsonProperty = prop;
             Parent = element;
             ValueKind = prop.Value.ValueKind;            
-        }
-
-        partial void OnValueTranslationChanged(string? value)
-        {
-            IsDirty = value != OriginalValue;
-            ValueChanged?.Invoke(this, this);
-        }
-
-        public void MarkAsClean()
-        {
-            OriginalValue = ValueTranslation;
-            IsDirty = false;
         }
     }
 }

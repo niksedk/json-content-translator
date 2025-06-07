@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using JsonTreeViewEditor;
+using System.Text;
 
 namespace JsonContentTranslator
 {
@@ -60,6 +61,92 @@ namespace JsonContentTranslator
             }
 
             return result;
+        }
+
+        public string GetValue(string displayName)
+        {
+            var sb = new StringBuilder();
+            GetTextFromNode(this, sb, displayName);
+            return sb.ToString();
+        }
+
+        private void GetTextFromNode(JsonTreeNode node, StringBuilder sb, string displayName)
+        {
+            if (node.Properties != null)
+            {
+                foreach (var prop in node.Properties)
+                {
+                    if (sb.Length > 0)
+                    {
+                        return; 
+                    }
+
+                    if (prop.DisplayName.Equals(displayName, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        sb.Append(prop.OriginalValue);
+                    }
+                }
+            }
+
+            // Add children as nested objects
+            if (node.Children != null)
+            {
+                foreach (var child in node.Children)
+                {
+                    if (sb.Length > 0)
+                    {
+                        return; // Stop if max length is reached
+                    }
+
+                    if (!string.IsNullOrEmpty(child.DisplayName))
+                    {
+                        GetTextFromNode(child, sb, displayName);
+                    }
+                }
+            }
+        }
+
+        public string GetText(int maxLength = 2000)
+        {
+            var sb = new StringBuilder();
+            BuildTextFromNode(this, sb, maxLength);
+            return sb.ToString();
+        }
+
+        private void BuildTextFromNode(JsonTreeNode node, StringBuilder sb, int maxLength)
+        {
+            if (node.Properties != null)
+            {
+                foreach (var prop in node.Properties)
+                {
+                    if (sb.Length >= maxLength)
+                    {
+                        return; // Stop if max length is reached
+                    }
+
+                    if (!string.IsNullOrEmpty(prop.OriginalValue))
+                    {
+                        sb.Append($"{prop.OriginalValue} ");
+                    }
+                }
+            }
+
+            // Add children as nested objects
+            if (node.Children != null)
+            {
+                foreach (var child in node.Children)
+                {
+                    if (sb.Length >= maxLength)
+                    {
+                        return; // Stop if max length is reached
+                    }
+
+                    if (!string.IsNullOrEmpty(child.DisplayName))
+                    {
+                        BuildTextFromNode(child, sb,maxLength);
+                    }
+                }
+            }
         }
     }
 }

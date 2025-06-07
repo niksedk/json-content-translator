@@ -15,7 +15,7 @@ namespace JsonContentTranslator.AutoTranslate
     /// </summary>
     public class GoogleTranslateV1 : IAutoTranslator, IDisposable
     {
-        private HttpClient _httpClient;
+        private HttpClient? _httpClient;
 
         public static string StaticName { get; set; } = "Google Translate V1 API";
         public override string ToString() => StaticName;
@@ -28,7 +28,7 @@ namespace JsonContentTranslator.AutoTranslate
         {
             _httpClient?.Dispose();
             _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0)");
+            _httpClient.DefaultRequestHeaders.Add("user-agent", "MMozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0");
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/json; charset=UTF-8");
             _httpClient.BaseAddress = new Uri("https://translate.googleapis.com/");
         }
@@ -52,8 +52,13 @@ namespace JsonContentTranslator.AutoTranslate
             return Uri.EscapeDataString(text);
         }
 
-        public Task<string> Translate(string input, string sourceLanguageCode, string targetLanguageCode, CancellationToken cancellationToken)
+        public async Task<string> Translate(string input, string sourceLanguageCode, string targetLanguageCode, CancellationToken cancellationToken)
         {
+            if (_httpClient == null)
+            {
+                Initialize();
+            }
+
             string jsonResultString;
 
             try
@@ -61,8 +66,8 @@ namespace JsonContentTranslator.AutoTranslate
                 var text = input.Replace("\r'",string.Empty).Trim();
                 var url = $"translate_a/single?client=gtx&sl={sourceLanguageCode}&tl={targetLanguageCode}&dt=t&q={UrlEncode(text)}";
 
-                var result = _httpClient.GetAsync(url).Result;
-                var bytes = result.Content.ReadAsByteArrayAsync().Result;
+                var result = await _httpClient!.GetAsync(url);
+                var bytes = await result.Content.ReadAsByteArrayAsync();
                 jsonResultString = Encoding.UTF8.GetString(bytes).Trim();
 
                 if (!result.IsSuccessStatusCode)
@@ -76,7 +81,7 @@ namespace JsonContentTranslator.AutoTranslate
             }
 
             var resultList = ConvertJsonObjectToStringLines(jsonResultString);
-            return Task.FromResult(string.Join(Environment.NewLine, resultList));
+            return string.Join(Environment.NewLine, resultList);
         }
 
         public static List<TranslationPair> GetTranslationPairs()
