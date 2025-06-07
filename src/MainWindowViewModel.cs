@@ -3,10 +3,10 @@ using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JsonContentTranslator;
+using JsonContentTranslator.AutoTranslate;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
 
@@ -19,10 +19,13 @@ namespace JsonTreeViewEditor
         [ObservableProperty] private ObservableCollection<JsonGridItem> _nodeProperties = new();
         [ObservableProperty] private JsonGridItem? _selectedNodeProperty;
         [ObservableProperty] private bool _isTextBoxEnabled;
+        [ObservableProperty] private ObservableCollection<TranslationPair> _sourceLanguages;
+        [ObservableProperty] private TranslationPair _selectedSourceLanguage;
+        [ObservableProperty] private ObservableCollection<TranslationPair> _targetLanguages;
+        [ObservableProperty] private TranslationPair _selectedTargetLanguage;
 
         private JsonDocument? _document;
         private string? _fileName;
-        private JsonDocumentManager? _documentManager;
         Dictionary<string, JsonGridItem> _lookupBaseDictionary;
         Dictionary<string, JsonGridItem> _lookupTranslationDictionary;
 
@@ -32,24 +35,14 @@ namespace JsonTreeViewEditor
         {
             _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
             _lookupTranslationDictionary = new Dictionary<string, JsonGridItem>();
+
+            SourceLanguages = new ObservableCollection<TranslationPair>(GoogleTranslateV1.GetTranslationPairs());
+            TargetLanguages = new ObservableCollection<TranslationPair>(GoogleTranslateV1.GetTranslationPairs());
         }
 
         partial void OnSelectedNodeChanged(JsonTreeNode? value)
         {
-            // Save any pending changes before switching nodes
-            if (_documentManager != null && HasPendingChanges())
-            {
-                ApplyPendingChangesToDocument();
-            }
-
-            NodeProperties = new ObservableCollection<JsonGridItem>(
-                value?.Properties ?? new List<JsonGridItem>());
-
-            // Subscribe to value changes for the new properties
-            foreach (var item in NodeProperties)
-            {
-                item.ValueChanged += OnJsonItemValueTranslationChanged;
-            }
+            NodeProperties = new ObservableCollection<JsonGridItem>(value?.Properties ?? new List<JsonGridItem>());
         }
 
         public void LoadJsonBase(string filePath)
@@ -57,7 +50,6 @@ namespace JsonTreeViewEditor
             _fileName = filePath;
             var json = File.ReadAllText(filePath);
             _document = JsonDocument.Parse(json);
-            _documentManager = new JsonDocumentManager(_document);
             _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
             var root = ParseJson(_lookupBaseDictionary, _document.RootElement, "Root");
             JsonTree.Clear();
@@ -88,9 +80,6 @@ namespace JsonTreeViewEditor
 
         public void SaveJson(string filePath)
         {
-            // Apply any pending changes first
-//            SaveChanges();
-
             if (_document == null || string.IsNullOrEmpty(filePath))
             {
                 return;
@@ -156,107 +145,6 @@ namespace JsonTreeViewEditor
             return node;
         }
 
-        private void OnJsonItemValueTranslationChanged(object? sender, JsonGridItem item)
-        {
-            if (item.IsDirty && _documentManager != null)
-            {
-                // Just register the change, don't apply immediately
-                var propertyPath = BuildPropertyPath(item);
-                _documentManager.RegisterChange(propertyPath, item.ValueTranslation);
-            }
-        }
-
-        private string BuildPropertyPath(JsonGridItem item)
-        {
-            // For now, simple implementation
-            return item.DisplayName;
-        }
-
-        private bool HasPendingChanges()
-        {
-            return NodeProperties.Any(p => p.IsDirty);
-        }
-
-        private void ApplyPendingChangesToDocument()
-        {
-            if (_documentManager == null)
-            {
-                return;
-            }
-
-            // Apply changes to get updated document
-            _document = _documentManager.ApplyChanges();
-
-            // Mark all current properties as clean
-            foreach (var item in NodeProperties)
-            {
-                item.MarkAsClean();
-            }
-        }
-
-        // Call this method to apply all pending changes and rebuild tree
-        public void SaveChanges()
-        {
-            if (_documentManager == null)
-            {
-                return;
-            }
-
-            // Apply pending changes
-            ApplyPendingChangesToDocument();
-
-            // Now rebuild the tree with the updated document
-            RebuildTree();
-        }
-
-        private void RebuildTree()
-        {
-            if (_document == null)
-            {
-                return;
-            }
-
-            // Remember the currently selected node path
-            var selectedPath = SelectedNode?.DisplayName;
-
-            _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
-            var root = ParseJson(_lookupBaseDictionary, _document.RootElement, "Root");
-            JsonTree.Clear();
-            JsonTree.Add(root);
-
-            // Try to restore selection
-            if (!string.IsNullOrEmpty(selectedPath))
-            {
-                var newSelectedNode = FindNodeByPath(selectedPath);
-                if (newSelectedNode != null)
-                {
-                    SelectedNode = newSelectedNode;
-                }
-            }
-        }
-
-        private JsonTreeNode? FindNodeByPath(string displayName)
-        {
-            return JsonTree.FirstOrDefault()?.FindChild(displayName);
-        }
-
-        // Remove auto-save on property selection change
-        partial void OnSelectedNodePropertyChanged(JsonGridItem? value)
-        {
-            // Don't auto-save here - let user control when to save
-            // SaveChanges();
-        }
-
-        // Add explicit methods for user to call
-        public void ApplyChanges()
-        {
-            ApplyPendingChangesToDocument();
-        }
-
-        public void RefreshTree()
-        {
-            SaveChanges();
-        }
 
         internal void OnDataGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {

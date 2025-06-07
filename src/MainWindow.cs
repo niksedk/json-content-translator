@@ -90,18 +90,56 @@ namespace JsonContentTranslator
             };
 
             var buttonGoToNextEmpty = new Button { Content = "Next blank" }.WithIconLeft("fa-magnifying-glass");
+
+            var labelFrom = new Label
+            {
+                Content = "From",
+                Margin = new Thickness(0, 10, 0, 0),
+                VerticalContentAlignment = VerticalAlignment.Center,
+            };
+            var comboBoxSourceLanguage = new ComboBox
+            {
+                ItemsSource = viewModel.SourceLanguages,
+                DataContext = viewModel,
+                [!ComboBox.SelectedItemProperty] = new Binding(nameof(viewModel.SelectedSourceLanguage)),
+                Margin = new Thickness(0,10,0,0),
+            };
+
+            var labelTo = new Label
+            {
+                Content = "To",
+                Margin = new Thickness(0, 10, 0, 0),
+                VerticalContentAlignment = VerticalAlignment.Center,
+            };
+            var comboBoxTargetLanguage = new ComboBox
+            {
+                ItemsSource = viewModel.TargetLanguages,
+                DataContext = viewModel,
+                [!ComboBox.SelectedItemProperty] = new Binding(nameof(viewModel.SelectedTargetLanguage)),
+                Margin = new Thickness(0, 10, 0, 0),
+            };
+
             var buttonTranslate = new Button { Content = "Translate selected" }.WithIconLeft("fa-language");
 
             var stackPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Children = { openButton, saveButton, buttonGoToNextEmpty, buttonTranslate },
+                Children = 
+                { 
+                    openButton, 
+                    saveButton, 
+                    buttonGoToNextEmpty, 
+                    labelFrom,
+                    comboBoxSourceLanguage,
+                    labelTo,
+                    comboBoxTargetLanguage,
+                    buttonTranslate },
             };
 
             return stackPanel;
         }
 
-        private Border MakeGridView(MainWindowViewModel viewModel)
+        private static Border MakeGridView(MainWindowViewModel viewModel)
         {
             var dataGrid = new DataGrid
             {
@@ -154,7 +192,7 @@ namespace JsonContentTranslator
             return border;
         }
 
-        private StackPanel MakeEditView(MainWindowViewModel viewModel)
+        private static StackPanel MakeEditView(MainWindowViewModel viewModel)
         {
             var textBox = new TextBox
             {
