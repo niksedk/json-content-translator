@@ -20,5 +20,46 @@ namespace JsonContentTranslator
             Children = new ObservableCollection<JsonTreeNode>();
             Properties = new List<JsonGridItem>();
         }
+
+        public string ConvertTreeToJson()
+        {
+            var jsonObject = BuildObjectFromNode(this);
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true
+            };
+            return JsonSerializer.Serialize(jsonObject, options);
+        }
+
+        private Dictionary<string, object> BuildObjectFromNode(JsonTreeNode node)
+        {
+            var result = new Dictionary<string, object>();
+
+            // Add properties as string values
+            if (node.Properties != null)
+            {
+                foreach (var prop in node.Properties)
+                {
+                    if (!string.IsNullOrEmpty(prop.DisplayName))
+                    {
+                        result[prop.DisplayName] = prop.ValueTranslation ?? string.Empty;
+                    }
+                }
+            }
+
+            // Add children as nested objects
+            if (node.Children != null)
+            {
+                foreach (var child in node.Children)
+                {
+                    if (!string.IsNullOrEmpty(child.DisplayName))
+                    {
+                        result[child.DisplayName] = BuildObjectFromNode(child);
+                    }
+                }
+            }
+
+            return result;
+        }
     }
 }

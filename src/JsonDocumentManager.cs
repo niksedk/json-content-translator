@@ -24,7 +24,9 @@ public class JsonDocumentManager
     public JsonDocument ApplyChanges()
     {
         if (!_pendingChanges.Any())
+        {
             return _document;
+        }
 
         // Convert current document to a mutable dictionary
         var options = new JsonSerializerOptions
@@ -122,7 +124,10 @@ public class JsonDocumentManager
 
     private object? ConvertStringToAppropriateType(string? value, object? originalValue)
     {
-        if (value == null) return null;
+        if (value == null)
+        {
+            return null;
+        }
 
         // Try to maintain the original type
         return originalValue switch

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 
 namespace JsonTreeViewEditor
@@ -22,12 +23,15 @@ namespace JsonTreeViewEditor
         private JsonDocument? _document;
         private string? _fileName;
         private JsonDocumentManager? _documentManager;
+        Dictionary<string, JsonGridItem> _lookupBaseDictionary;
+        Dictionary<string, JsonGridItem> _lookupTranslationDictionary;
 
         public TreeView JsonTreeView { get; internal set; }
 
         public MainWindowViewModel()
         {
-
+            _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
+            _lookupTranslationDictionary = new Dictionary<string, JsonGridItem>();
         }
 
         partial void OnSelectedNodeChanged(JsonTreeNode? value)
@@ -44,38 +48,59 @@ namespace JsonTreeViewEditor
             // Subscribe to value changes for the new properties
             foreach (var item in NodeProperties)
             {
-                item.ValueChanged += OnJsonItemValueChanged;
+                item.ValueChanged += OnJsonItemValueTranslationChanged;
             }
         }
 
-        public void LoadJson(string filePath)
+        public void LoadJsonBase(string filePath)
         {
             _fileName = filePath;
             var json = File.ReadAllText(filePath);
             _document = JsonDocument.Parse(json);
             _documentManager = new JsonDocumentManager(_document);
-            var root = ParseJson(_document.RootElement, "Root");
+            _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
+            var root = ParseJson(_lookupBaseDictionary, _document.RootElement, "Root");
             JsonTree.Clear();
             JsonTree.Add(root);
-            ExpandAll(); 
+            ExpandAll();
+        }
+
+        public void LoadJsonTranslation(string filePath)
+        {
+            var json = File.ReadAllText(filePath);
+            var document = JsonDocument.Parse(json);            
+            _lookupTranslationDictionary = new Dictionary<string, JsonGridItem>();  
+            var root = ParseJson(_lookupTranslationDictionary, document.RootElement, "Root");
+            var jsonTree = new List<JsonTreeNode>();
+            SetTranslationValues(JsonTree, jsonTree);
+        }
+
+        private void SetTranslationValues(ObservableCollection<JsonTreeNode> baseLanguage, List<JsonTreeNode> translation)
+        {
+            foreach (var item in _lookupBaseDictionary.Values)
+            {
+                if (_lookupTranslationDictionary.TryGetValue(item.Path, out var trnslationItem))
+                {
+                    item.ValueTranslation = trnslationItem.ValueOriginal;
+                }
+            }
         }
 
         public void SaveJson(string filePath)
         {
             // Apply any pending changes first
-            SaveChanges();
+//            SaveChanges();
 
             if (_document == null || string.IsNullOrEmpty(filePath))
             {
                 return;
             }
 
-            using var stream = File.Create(filePath);
-            using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
-            _document.WriteTo(writer);
+            var json = JsonTree[0].ConvertTreeToJson();
+            File.WriteAllText(filePath, json, Encoding.UTF8);    
         }
 
-        private JsonTreeNode ParseJson(JsonElement element, string name)
+        private JsonTreeNode ParseJson(Dictionary<string, JsonGridItem> lookupDictionary,  JsonElement element, string name)
         {
             var node = new JsonTreeNode
             {
@@ -100,13 +125,18 @@ namespace JsonTreeViewEditor
                             prop.Value.ValueKind == JsonValueKind.True ||
                             prop.Value.ValueKind == JsonValueKind.False)
                         {
-                            var gridItem = new JsonGridItem(element, prop);
+                            var gridItem = new JsonGridItem(node, element, prop);
+                            if (!lookupDictionary.ContainsKey(gridItem.Path))
+                            {
+                                lookupDictionary.Add(gridItem.Path, gridItem);
+                            }
+
                             node.Properties.Add(gridItem);
                         }
 
                         if (prop.Value.ValueKind == JsonValueKind.Object)
                         {
-                            var child = ParseJson(prop.Value, prop.Name);
+                            var child = ParseJson(lookupDictionary, prop.Value, prop.Name);
                             node.Children.Add(child);
                         }
                     }
@@ -115,7 +145,7 @@ namespace JsonTreeViewEditor
                     int index = 0;
                     foreach (var item in element.EnumerateArray())
                     {
-                        var child = ParseJson(item, $"[{index++}]");
+                        var child = ParseJson(lookupDictionary, item, $"[{index++}]");
                         node.Children.Add(child);
                     }
                     break;
@@ -126,13 +156,13 @@ namespace JsonTreeViewEditor
             return node;
         }
 
-        private void OnJsonItemValueChanged(object? sender, JsonGridItem item)
+        private void OnJsonItemValueTranslationChanged(object? sender, JsonGridItem item)
         {
             if (item.IsDirty && _documentManager != null)
             {
                 // Just register the change, don't apply immediately
                 var propertyPath = BuildPropertyPath(item);
-                _documentManager.RegisterChange(propertyPath, item.Value);
+                _documentManager.RegisterChange(propertyPath, item.ValueTranslation);
             }
         }
 
@@ -149,7 +179,10 @@ namespace JsonTreeViewEditor
 
         private void ApplyPendingChangesToDocument()
         {
-            if (_documentManager == null) return;
+            if (_documentManager == null)
+            {
+                return;
+            }
 
             // Apply changes to get updated document
             _document = _documentManager.ApplyChanges();
@@ -164,7 +197,10 @@ namespace JsonTreeViewEditor
         // Call this method to apply all pending changes and rebuild tree
         public void SaveChanges()
         {
-            if (_documentManager == null) return;
+            if (_documentManager == null)
+            {
+                return;
+            }
 
             // Apply pending changes
             ApplyPendingChangesToDocument();
@@ -175,12 +211,16 @@ namespace JsonTreeViewEditor
 
         private void RebuildTree()
         {
-            if (_document == null) return;
+            if (_document == null)
+            {
+                return;
+            }
 
             // Remember the currently selected node path
             var selectedPath = SelectedNode?.DisplayName;
 
-            var root = ParseJson(_document.RootElement, "Root");
+            _lookupBaseDictionary = new Dictionary<string, JsonGridItem>();
+            var root = ParseJson(_lookupBaseDictionary, _document.RootElement, "Root");
             JsonTree.Clear();
             JsonTree.Add(root);
 
@@ -262,13 +302,17 @@ public static class JsonTreeNodeExtensions
     public static JsonTreeNode? FindChild(this JsonTreeNode node, string displayName)
     {
         if (node.DisplayName == displayName)
+        {
             return node;
+        }
 
         foreach (var child in node.Children)
         {
             var found = child.FindChild(displayName);
             if (found != null)
+            {
                 return found;
+            }
         }
 
         return null;

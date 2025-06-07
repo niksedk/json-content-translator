@@ -62,11 +62,19 @@ namespace JsonContentTranslator
             var openButton = new Button { Content = string.Empty }.WithIconLeft("fa-folder-open");
             openButton.Click += async (_, _) =>
             {
-                var ofd = new OpenFileDialog { Filters = { new FileDialogFilter { Name = "JSON", Extensions = { "json" } } } };
+                var ofd = new OpenFileDialog { Filters = { new FileDialogFilter { Name = "English JSON", Extensions = { "json" } } } };
                 var files = await ofd.ShowAsync(this);
                 if (files != null && files.Length > 0)
                 {
-                    viewModel.LoadJson(files[0]);
+                    viewModel.LoadJsonBase(files[0]);
+
+
+                    ofd = new OpenFileDialog { Filters = { new FileDialogFilter { Name = "English JSON", Extensions = { "json" } } } };
+                    files = await ofd.ShowAsync(this);
+                    if (files != null && files.Length > 0)
+                    {
+                        viewModel.LoadJsonTranslation(files[0]);
+                    }
                 }
             };
 
@@ -112,8 +120,14 @@ namespace JsonContentTranslator
                     },
                     new DataGridTextColumn
                     {
-                        Header = "Value",
-                        Binding = new Binding(nameof(JsonGridItem.Value)),
+                        Header = "Base value",
+                        Binding = new Binding(nameof(JsonGridItem.ValueOriginal)),
+                        Width = new DataGridLength(2, DataGridLengthUnitType.Auto)
+                    },
+                    new DataGridTextColumn
+                    {
+                        Header = "Translation value",
+                        Binding = new Binding(nameof(JsonGridItem.ValueTranslation)),
                         Width = new DataGridLength(2, DataGridLengthUnitType.Auto)
                     },
                     new DataGridTextColumn
@@ -146,7 +160,7 @@ namespace JsonContentTranslator
             {
                 AcceptsReturn = true,
                 Height = 100,
-                [!TextBox.TextProperty] = new Binding($"{nameof(viewModel.SelectedNodeProperty)}.{nameof(JsonGridItem.Value)}") { Mode = BindingMode.TwoWay },
+                [!TextBox.TextProperty] = new Binding($"{nameof(viewModel.SelectedNodeProperty)}.{nameof(JsonGridItem.ValueTranslation)}") { Mode = BindingMode.TwoWay },
                 [!TextBox.IsEnabledProperty] = new Binding(nameof(viewModel.IsTextBoxEnabled)),
             };
 
