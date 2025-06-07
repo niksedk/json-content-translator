@@ -1,6 +1,5 @@
 ﻿using Avalonia;
 using Avalonia.Animation;
-using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
@@ -25,11 +24,6 @@ namespace JsonContentTranslator
             MinWidth = 600;
             MinHeight = 400;
 
-            var toolBar = MakeToolBar(viewModel);
-            var treeView = MakeTreeView(viewModel);
-            var gridView = MakeGridView(viewModel);
-            var editView = MakeEditView(viewModel);
-
             var mainGrid = new Grid
             {
                 ColumnDefinitions = new ColumnDefinitions("*,3*"),
@@ -41,6 +35,11 @@ namespace JsonContentTranslator
                 RowSpacing = 10,
                 Margin = new Thickness(0, 0, 10, 0),
             };
+
+            var toolBar = MakeToolBar(viewModel);
+            var treeView = MakeTreeView(viewModel);
+            var gridView = MakeGridView(viewModel);
+            var editView = MakeEditView(viewModel);
 
             mainGrid.Children.Add(toolBar);
             toolBar.SetValue(Grid.RowProperty, 0);
@@ -65,12 +64,19 @@ namespace JsonContentTranslator
 
         private StackPanel MakeToolBar(MainWindowViewModel viewModel)
         {
-            var openButton = new Button
+            var buttonOpen = new Button
             {
-                Content = string.Empty,
+                Content = "Open json base file...",
                 Command = viewModel.OpenBaseAndTranslationCommand,
             }.WithIconLeft("fa-folder-open");
-            openButton.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsNotLoaded)));
+            buttonOpen.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsNotLoaded)));
+
+            var buttonOpenSeEnglish = new Button
+            {
+                Content = "Open SE English as base...",
+                Command = viewModel.OpenSeBaseAndTranslationCommand,
+            }.WithIconLeft("fa-folder-open");
+            buttonOpenSeEnglish.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsNotLoaded)));
 
             var saveButton = new Button
             {
@@ -79,7 +85,11 @@ namespace JsonContentTranslator
             }.WithIconLeft("fa-floppy-disk");
             saveButton.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
-            var buttonGoToNextEmpty = new Button { Content = "Next blank" }.WithIconLeft("fa-magnifying-glass");
+            var buttonGoToNextEmpty = new Button
+            {
+                Content = "Next blank",
+                Command = viewModel.SelectNextBlankPropertyValueCommand,
+            }.WithIconLeft("fa-magnifying-glass");
             buttonGoToNextEmpty.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
             var labelFrom = new Label
@@ -102,7 +112,7 @@ namespace JsonContentTranslator
             var labelTo = new Label
             {
                 Content = "To",
-                Margin = new Thickness(0, 12, 0, 0),
+                Margin = new Thickness(0, 10, 0, 0),
                 VerticalContentAlignment = VerticalAlignment.Center,
             };
             labelTo.Bind(Label.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
@@ -112,7 +122,7 @@ namespace JsonContentTranslator
                 ItemsSource = viewModel.TargetLanguages,
                 DataContext = viewModel,
                 [!ComboBox.SelectedItemProperty] = new Binding(nameof(viewModel.SelectedTargetLanguage)),
-                Margin = new Thickness(0, 10, 5, 0),
+                Margin = new Thickness(0, 12, 5, 0),
             };
             comboBoxTargetLanguage.Bind(ComboBox.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
@@ -121,7 +131,7 @@ namespace JsonContentTranslator
             {
                 Content = "Translate selected",
                 Command = viewModel.TranslateSelectedItemsCommand,
-            }.WithIconLeft("fa-language");
+            }.WithIconLeft("fa-globe");
             buttonTranslate.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
 
@@ -138,7 +148,6 @@ namespace JsonContentTranslator
             {
                 Duration = TimeSpan.FromSeconds(1),
                 IterationCount = IterationCount.Infinite,
-                //Easing = Easing.,
                 Children =
                 {
                     new KeyFrame
@@ -163,14 +172,14 @@ namespace JsonContentTranslator
             animation.RunAsync(spinner);
 
 
-
             var stackPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 Margin = new Thickness(10, 0, 0, 0),
                 Children =
                 {
-                    openButton,
+                    buttonOpen,
+                    buttonOpenSeEnglish,
                     saveButton,
                     buttonGoToNextEmpty,
                     labelFrom,
@@ -188,13 +197,13 @@ namespace JsonContentTranslator
         public static readonly ControlTheme DataGridNoBorderCellTheme = new ControlTheme(typeof(DataGridCell))
         {
             Setters =
-        {
-            new Setter(DataGridCell.BorderThicknessProperty, new Thickness(0)),
-            new Setter(DataGridCell.BorderBrushProperty, Brushes.Transparent),
-            new Setter(DataGridCell.BackgroundProperty, Brushes.Transparent),
-            new Setter(DataGridCell.FocusAdornerProperty, null),
-            new Setter(DataGridCell.PaddingProperty, new Thickness(4)),
-        }
+            {
+                new Setter(DataGridCell.BorderThicknessProperty, new Thickness(0)),
+                new Setter(DataGridCell.BorderBrushProperty, Brushes.Transparent),
+                new Setter(DataGridCell.BackgroundProperty, Brushes.Transparent),
+                new Setter(DataGridCell.FocusAdornerProperty, null),
+                new Setter(DataGridCell.PaddingProperty, new Thickness(4)),
+            }
         };
 
         private static Border MakeGridView(MainWindowViewModel viewModel)
@@ -207,6 +216,7 @@ namespace JsonContentTranslator
                 Height = double.NaN,
                 VerticalAlignment = VerticalAlignment.Stretch,
                 IsReadOnly = true,
+                CanUserResizeColumns = true,
                 Columns =
                 {
                     new DataGridTextColumn
@@ -231,6 +241,24 @@ namespace JsonContentTranslator
                         CellTheme = DataGridNoBorderCellTheme,
                     },
                 },
+                ContextMenu = new ContextMenu
+                {
+                    Items =
+                {
+                    new Avalonia.Controls.MenuItem
+                    {
+                        Header = "Translate selected",
+                        Command = viewModel.TranslateSelectedItemsCommand,
+                        [!Avalonia.Controls.MenuItem.IsVisibleProperty] = new Binding(nameof(viewModel.IsLoaded)),
+                    },
+                    new Avalonia.Controls.MenuItem
+                    {
+                        Header = "Transfer base value for selected",
+                        Command = viewModel.TransferBaseForSelectedCommand,
+                        [!Avalonia.Controls.MenuItem.IsVisibleProperty] = new Binding(nameof(viewModel.IsLoaded)),
+                    }
+                }
+                }
             };
             dataGrid.SelectionChanged += viewModel.OnDataGridSelectionChanged;
             viewModel.JsonDataGrid = dataGrid;
