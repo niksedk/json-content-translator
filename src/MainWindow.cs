@@ -36,15 +36,20 @@ namespace JsonContentTranslator
                 Margin = new Thickness(0, 0, 10, 0),
             };
 
-            var toolBar = MakeToolBar(viewModel);
+            var toolBar1 = MakeToolBar1(viewModel);
+            var toolBar2 = MakeToolBar2(viewModel);
             var treeView = MakeTreeView(viewModel);
             var gridView = MakeGridView(viewModel);
             var editView = MakeEditView(viewModel);
 
-            mainGrid.Children.Add(toolBar);
-            toolBar.SetValue(Grid.RowProperty, 0);
-            toolBar.SetValue(Grid.ColumnProperty, 0);
-            toolBar.SetValue(Grid.ColumnSpanProperty, 2);
+            mainGrid.Children.Add(toolBar1);
+            toolBar1.SetValue(Grid.RowProperty, 0);
+            toolBar1.SetValue(Grid.ColumnProperty, 0);
+            toolBar1.SetValue(Grid.ColumnSpanProperty, 2);
+
+            mainGrid.Children.Add(toolBar2);
+            toolBar2.SetValue(Grid.RowProperty, 0);
+            toolBar2.SetValue(Grid.ColumnProperty, 1);
 
             mainGrid.Children.Add(treeView);
             treeView.SetValue(Grid.RowProperty, 1);
@@ -62,7 +67,7 @@ namespace JsonContentTranslator
             Content = mainGrid;
         }
 
-        private StackPanel MakeToolBar(MainWindowViewModel viewModel)
+        private StackPanel MakeToolBar1(MainWindowViewModel viewModel)
         {
             var buttonOpen = new Button
             {
@@ -78,12 +83,12 @@ namespace JsonContentTranslator
             }.WithIconLeft("fa-folder-open");
             buttonOpenSeEnglish.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsNotLoaded)));
 
-            var saveButton = new Button
+            var buttonSave = new Button
             {
                 Content = string.Empty,
                 Command = viewModel.SaveJsonCommand,
             }.WithIconLeft("fa-floppy-disk");
-            saveButton.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
+            buttonSave.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
             var buttonGoToNextEmpty = new Button
             {
@@ -92,10 +97,29 @@ namespace JsonContentTranslator
             }.WithIconLeft("fa-magnifying-glass");
             buttonGoToNextEmpty.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
+            var stackPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(10, 0, 0, 0),
+                Children =
+                {
+                    buttonOpen,
+                    buttonOpenSeEnglish,
+                    buttonSave,
+                    buttonGoToNextEmpty
+
+                },
+            };
+
+            return stackPanel;
+        }
+
+        private StackPanel MakeToolBar2(MainWindowViewModel viewModel)
+        {
             var labelFrom = new Label
             {
                 Content = "From",
-                Margin = new Thickness(50, 10, 0, 0),
+                Margin = new Thickness(10, 10, 0, 0),
                 VerticalContentAlignment = VerticalAlignment.Center,
             };
             labelFrom.Bind(Label.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
@@ -178,10 +202,6 @@ namespace JsonContentTranslator
                 Margin = new Thickness(10, 0, 0, 0),
                 Children =
                 {
-                    buttonOpen,
-                    buttonOpenSeEnglish,
-                    saveButton,
-                    buttonGoToNextEmpty,
                     labelFrom,
                     comboBoxSourceLanguage,
                     labelTo,

@@ -67,7 +67,27 @@ namespace JsonTreeViewEditor
 
         [RelayCommand]
         public void SelectNextBlankPropertyValue()
-        {
+        {         
+            var node = JsonTree.FirstOrDefault();
+            if (node == null)
+            {
+                return;
+            }
+
+            var property = node.FindPropertyValue(SelectedNodeProperty);
+            if (property == null)
+            {
+                return;
+            }
+
+            SelectedNode = property.Node;
+            SelectedNodeProperty = property;
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                JsonTreeView.ScrollIntoView(SelectedNode);
+                //JsonTreeView.ExpandSubTree();
+            });
 
         }
 
@@ -218,6 +238,7 @@ namespace JsonTreeViewEditor
         partial void OnSelectedNodeChanged(JsonTreeNode? value)
         {
             NodeProperties = new ObservableCollection<JsonGridItem>(value?.Properties ?? new List<JsonGridItem>());
+            SelectedNodeProperty = NodeProperties.FirstOrDefault();
         }
 
         public void LoadJsonBase(string filePath)
@@ -383,6 +404,7 @@ namespace JsonTreeViewEditor
                 foreach (var item in allTreeViewItems)
                 {
                     item.IsExpanded = true;
+                    JsonTreeView.ExpandSubTree(item);
                 }
             }, DispatcherPriority.Background);
         }

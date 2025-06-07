@@ -78,7 +78,7 @@ namespace JsonContentTranslator
                 {
                     if (sb.Length > 0)
                     {
-                        return; 
+                        return;
                     }
 
                     if (prop.DisplayName.Equals(displayName, System.StringComparison.OrdinalIgnoreCase))
@@ -143,10 +143,50 @@ namespace JsonContentTranslator
 
                     if (!string.IsNullOrEmpty(child.DisplayName))
                     {
-                        BuildTextFromNode(child, sb,maxLength);
+                        BuildTextFromNode(child, sb, maxLength);
                     }
                 }
             }
+        }
+
+        public JsonGridItem? FindPropertyValue(JsonGridItem? selectedNodeProperty)
+        {
+            var found = false;
+            return FindValueFromNode(this, selectedNodeProperty, ref found);
+        }
+
+        private JsonGridItem? FindValueFromNode(JsonTreeNode node, JsonGridItem? selectedNodeProperty, ref bool found)
+        {
+            if (node.Properties != null)
+            {
+                foreach (var prop in node.Properties)
+                {
+                    if (string.IsNullOrWhiteSpace(prop.ValueTranslation) && found)
+                    {
+                        return prop;
+                    }
+
+                    if (selectedNodeProperty != null && prop.Path == selectedNodeProperty.Path)
+                    {
+                        found = true;
+                        selectedNodeProperty = null;
+                    }
+                }
+            }
+
+            if (node.Children != null)
+            {
+                foreach (var child in node.Children)
+                {
+                    var value = FindValueFromNode(child, selectedNodeProperty, ref found);
+                    if (value != null)
+                    {
+                        return value; // Return the first found value
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }
