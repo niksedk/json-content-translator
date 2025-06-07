@@ -3,6 +3,7 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -14,15 +15,18 @@ namespace JsonContentTranslator
 {
     public class MainWindow : Window
     {
+        private MainWindowViewModel _vm;
+
         public MainWindow(MainWindowViewModel viewModel)
         {
+            _vm = viewModel;
             viewModel.Window = this;
             DataContext = viewModel;
             Title = viewModel.Title;
             Width = 1024;
             Height = 750;
-            MinWidth = 600;
-            MinHeight = 400;
+            MinWidth = 900;
+            MinHeight = 500;
 
             var mainGrid = new Grid
             {
@@ -67,6 +71,13 @@ namespace JsonContentTranslator
             Content = mainGrid;
         }
 
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            _vm.OnKeyDown(e);
+                
+        }
+
         private StackPanel MakeToolBar1(MainWindowViewModel viewModel)
         {
             var buttonOpen = new Button
@@ -92,7 +103,7 @@ namespace JsonContentTranslator
 
             var buttonGoToNextEmpty = new Button
             {
-                Content = "Next blank",
+                Content = "Next blank (F6)",
                 Command = viewModel.SelectNextBlankPropertyValueCommand,
             }.WithIconLeft("fa-magnifying-glass");
             buttonGoToNextEmpty.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
@@ -119,7 +130,7 @@ namespace JsonContentTranslator
             var labelFrom = new Label
             {
                 Content = "From",
-                Margin = new Thickness(10, 10, 0, 0),
+                Margin = new Thickness(0, 10, 0, 0),
                 VerticalContentAlignment = VerticalAlignment.Center,
             };
             labelFrom.Bind(Label.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
@@ -153,7 +164,7 @@ namespace JsonContentTranslator
 
             var buttonTranslate = new Button
             {
-                Content = "Translate selected",
+                Content = "Translate selected (F8)",
                 Command = viewModel.TranslateSelectedItemsCommand,
             }.WithIconLeft("fa-globe");
             buttonTranslate.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
@@ -199,7 +210,7 @@ namespace JsonContentTranslator
             var stackPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Margin = new Thickness(10, 0, 0, 0),
+                Margin = new Thickness(0, 0, 0, 0),
                 Children =
                 {
                     labelFrom,

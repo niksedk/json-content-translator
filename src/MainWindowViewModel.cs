@@ -1,4 +1,5 @@
 ﻿using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -67,7 +68,7 @@ namespace JsonTreeViewEditor
 
         [RelayCommand]
         public void SelectNextBlankPropertyValue()
-        {         
+        {
             var node = JsonTree.FirstOrDefault();
             if (node == null)
             {
@@ -102,7 +103,7 @@ namespace JsonTreeViewEditor
 
             foreach (var item in selectedItems)
             {
-               item.ValueTranslation = item.ValueOriginal;
+                item.ValueTranslation = item.ValueOriginal;
             }
         }
 
@@ -426,6 +427,20 @@ namespace JsonTreeViewEditor
             }
 
             return result;
+        }
+
+        internal void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.Key == Key.F6)
+            {
+                SelectNextBlankPropertyValueCommand.Execute(null);
+                e.Handled = true; // Prevent further processing of this key event
+            }
+            else if (e.Key == Key.F8)
+            {
+                TranslateSelectedItemsCommand.Execute(null);
+                e.Handled = true; // Prevent further processing of this key event
+            }
         }
     }
 }
