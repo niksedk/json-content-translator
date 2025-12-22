@@ -176,7 +176,7 @@ namespace JsonTreeViewEditor
         {
             var storageProvider = Window!.StorageProvider;
 
-            var url = "https://raw.githubusercontent.com/niksedk/subtitleedit-avalonia/refs/heads/main/src/SubtitleEdit/UI/Assets/Languages/English.json";
+            var url = "https://github.com/niksedk/subtitleedit-avalonia/raw/refs/heads/main/src/UI/Assets/Languages/English.json";
 
             var httpClient = new HttpClient();
             try
