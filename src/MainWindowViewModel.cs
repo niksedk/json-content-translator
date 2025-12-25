@@ -87,9 +87,14 @@ namespace JsonTreeViewEditor
             Dispatcher.UIThread.Invoke(() =>
             {
                 JsonTreeView.ScrollIntoView(SelectedNode);
-                //JsonTreeView.ExpandSubTree();
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (SelectedNodeProperty != null)
+                    {
+                        JsonDataGrid.ScrollIntoView(SelectedNodeProperty, null);
+                    }
+                }, DispatcherPriority.Background);
             });
-
         }
 
         [RelayCommand]

@@ -40,20 +40,15 @@ namespace JsonContentTranslator
                 Margin = new Thickness(0, 0, 10, 0),
             };
 
-            var toolBar1 = MakeToolBar1(viewModel);
-            var toolBar2 = MakeToolBar2(viewModel);
+            var toolBar = MakeToolBar(viewModel);
             var treeView = MakeTreeView(viewModel);
             var gridView = MakeGridView(viewModel);
             var editView = MakeEditView(viewModel);
 
-            mainGrid.Children.Add(toolBar1);
-            toolBar1.SetValue(Grid.RowProperty, 0);
-            toolBar1.SetValue(Grid.ColumnProperty, 0);
-            toolBar1.SetValue(Grid.ColumnSpanProperty, 2);
-
-            mainGrid.Children.Add(toolBar2);
-            toolBar2.SetValue(Grid.RowProperty, 0);
-            toolBar2.SetValue(Grid.ColumnProperty, 1);
+            mainGrid.Children.Add(toolBar);
+            toolBar.SetValue(Grid.RowProperty, 0);
+            toolBar.SetValue(Grid.ColumnProperty, 0);
+            toolBar.SetValue(Grid.ColumnSpanProperty, 2);
 
             mainGrid.Children.Add(treeView);
             treeView.SetValue(Grid.RowProperty, 1);
@@ -75,24 +70,29 @@ namespace JsonContentTranslator
         {
             base.OnKeyDown(e);
             _vm.OnKeyDown(e);
-                
+
         }
 
-        private StackPanel MakeToolBar1(MainWindowViewModel viewModel)
+        private StackPanel MakeToolBar(MainWindowViewModel viewModel)
         {
-            var buttonOpen = new Button
+            var buttonOpen = new SplitButton
             {
                 Content = "Open json base file...",
                 Command = viewModel.OpenBaseAndTranslationCommand,
-            }.WithIconLeft("fa-folder-open");
-            buttonOpen.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsNotLoaded)));
-
-            var buttonOpenSeEnglish = new Button
-            {
-                Content = "Open SE English as base...",
-                Command = viewModel.OpenSeBaseAndTranslationCommand,
-            }.WithIconLeft("fa-folder-open");
-            buttonOpenSeEnglish.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsNotLoaded)));
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 8, 5, 0),
+                Flyout = new MenuFlyout
+                {
+                    Items =
+                    {
+                        new Avalonia.Controls.MenuItem
+                        {
+                            Header = "Open SE English as base...",
+                            Command = viewModel.OpenSeBaseAndTranslationCommand,
+                        }
+                    }
+                }
+            };
 
             var buttonSave = new Button
             {
@@ -108,25 +108,7 @@ namespace JsonContentTranslator
             }.WithIconLeft("fa-magnifying-glass");
             buttonGoToNextEmpty.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
-            var stackPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(10, 0, 0, 0),
-                Children =
-                {
-                    buttonOpen,
-                    buttonOpenSeEnglish,
-                    buttonSave,
-                    buttonGoToNextEmpty
 
-                },
-            };
-
-            return stackPanel;
-        }
-
-        private StackPanel MakeToolBar2(MainWindowViewModel viewModel)
-        {
             var labelFrom = new Label
             {
                 Content = "From",
@@ -210,9 +192,12 @@ namespace JsonContentTranslator
             var stackPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 0, 0, 0),
+                Margin = new Thickness(10, 0, 0, 0),
                 Children =
                 {
+                    buttonOpen,
+                    buttonSave,
+                    buttonGoToNextEmpty,
                     labelFrom,
                     comboBoxSourceLanguage,
                     labelTo,
