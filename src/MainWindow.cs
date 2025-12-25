@@ -93,6 +93,7 @@ namespace JsonContentTranslator
                     }
                 }
             };
+            buttonOpen.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsNotLoaded)));
 
             var buttonSave = new Button
             {
