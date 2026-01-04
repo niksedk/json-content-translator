@@ -23,9 +23,9 @@ namespace JsonContentTranslator
             viewModel.Window = this;
             DataContext = viewModel;
             Title = viewModel.Title;
-            Width = 1024;
+            Width = 1200;
             Height = 750;
-            MinWidth = 900;
+            MinWidth = 1024;
             MinHeight = 500;
 
             var mainGrid = new Grid
@@ -109,6 +109,14 @@ namespace JsonContentTranslator
             }.WithIconLeft("fa-magnifying-glass");
             buttonGoToNextEmpty.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
+            var buttonImportSe4Xml = new Button
+            {
+                Content = "Import SE 4 xml...",
+                Command = viewModel.ImportSe4XmlCommand,
+                Height = 34,
+                Margin = new Thickness(0, 10, 0, 0),
+            };
+            buttonImportSe4Xml.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
             var labelFrom = new Label
             {
@@ -199,6 +207,7 @@ namespace JsonContentTranslator
                     buttonOpen,
                     buttonSave,
                     buttonGoToNextEmpty,
+                    buttonImportSe4Xml,
                     labelFrom,
                     comboBoxSourceLanguage,
                     labelTo,

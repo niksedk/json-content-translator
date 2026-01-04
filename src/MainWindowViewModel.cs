@@ -160,6 +160,7 @@ namespace JsonTreeViewEditor
             if (baseFiles.Count > 0)
             {
                 LoadJsonBase(baseFiles[0].Path.LocalPath);
+                IsLoaded = true;
 
                 // Open second file (translation)
                 var translationFiles = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -196,6 +197,7 @@ namespace JsonTreeViewEditor
                 return;
             }
 
+            IsLoaded = true;
             var jsonFileType = new FilePickerFileType("JSON Files")
             {
                 Patterns = new[] { "*.json" },
@@ -238,6 +240,32 @@ namespace JsonTreeViewEditor
             if (file != null)
             {
                 SaveJson(file.Path.LocalPath);
+            }
+        }
+
+        [RelayCommand]
+        public async Task ImportSe4Xml()
+        {
+            var storageProvider = Window!.StorageProvider;
+
+            // Define file type filter for JSON files
+            var xmlFileType = new FilePickerFileType("Xml files")
+            {
+                Patterns = ["*.xml"],
+                MimeTypes = ["application/xml"]
+            };
+
+            // Open first file (base)
+            var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Select Subtitel Edit 4 xml translation file",
+                AllowMultiple = false,
+                FileTypeFilter = [xmlFileType]
+            });
+
+            if (files.Count > 0)
+            {
+                Se4XmlImporter.ImportSe4Xml(files[0].Path.LocalPath, JsonTree);
             }
         }
 
