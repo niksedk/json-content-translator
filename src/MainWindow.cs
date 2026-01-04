@@ -73,7 +73,7 @@ namespace JsonContentTranslator
 
         }
 
-        private StackPanel MakeToolBar(MainWindowViewModel viewModel)
+        private static StackPanel MakeToolBar(MainWindowViewModel viewModel)
         {
             var buttonOpen = new SplitButton
             {
@@ -247,14 +247,14 @@ namespace JsonContentTranslator
                     {
                         Header = "Base value",
                         Binding = new Binding(nameof(JsonGridItem.ValueOriginal)),
-                        Width = new DataGridLength(2, DataGridLengthUnitType.Auto),
+                        Width = new DataGridLength(2, DataGridLengthUnitType.Star),
                         CellTheme = DataGridNoBorderCellTheme,
                     },
                     new DataGridTextColumn
                     {
                         Header = "Translation value",
                         Binding = new Binding(nameof(JsonGridItem.ValueTranslation)),
-                        Width = new DataGridLength(2, DataGridLengthUnitType.Auto),
+                        Width = new DataGridLength(2, DataGridLengthUnitType.Star),
                         CellTheme = DataGridNoBorderCellTheme,
                     },
                 },

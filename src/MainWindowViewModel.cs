@@ -62,7 +62,7 @@ namespace JsonTreeViewEditor
             JsonTreeView = new TreeView();
             JsonDataGrid = new DataGrid();
 
-            Title = "Json Content Translator 1.1";
+            Title = "Json Content Translator 1.2";
             IsNotLoaded = true;
         }
 
