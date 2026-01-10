@@ -119,10 +119,18 @@ public static class Se4XmlImporter
         var normalizedXmlName = NormalizeName(xmlName);
         var normalizedJsonName = NormalizeName(jsonProp.Property.DisplayName);
 
-        // Exact match (highest priority)
+        // Parse paths
+        var xmlPathParts = xmlPath.Split('.');
+        var jsonPathParts = jsonProp.FullPath.Split('.');
+
+        // First, check if we have at least property name match (required for any scoring)
+        bool hasNameMatch = false;
+
+        // Exact name match (highest priority)
         if (string.Equals(normalizedXmlName, normalizedJsonName, StringComparison.OrdinalIgnoreCase))
         {
             score += 1000;
+            hasNameMatch = true;
         }
 
         // Match with DotDotDot variations
@@ -132,6 +140,7 @@ public static class Se4XmlImporter
             if (string.Equals(normalizedXmlName, jsonBase, StringComparison.OrdinalIgnoreCase))
             {
                 score += 900;
+                hasNameMatch = true;
             }
         }
 
@@ -142,41 +151,102 @@ public static class Se4XmlImporter
             if (string.Equals(xmlBase, normalizedJsonName, StringComparison.OrdinalIgnoreCase))
             {
                 score += 900;
+                hasNameMatch = true;
             }
         }
 
-        // Partial name match
-        if (normalizedJsonName.Contains(normalizedXmlName, StringComparison.OrdinalIgnoreCase) ||
-            normalizedXmlName.Contains(normalizedJsonName, StringComparison.OrdinalIgnoreCase))
+        // Only allow partial name matches if they are significant (at least 4 characters)
+        if (!hasNameMatch && normalizedXmlName.Length >= 4 && normalizedJsonName.Length >= 4)
         {
-            score += 500;
+            if (normalizedJsonName.Contains(normalizedXmlName, StringComparison.OrdinalIgnoreCase) ||
+                normalizedXmlName.Contains(normalizedJsonName, StringComparison.OrdinalIgnoreCase))
+            {
+                score += 300;
+                hasNameMatch = true;
+            }
         }
 
-        // Path similarity bonus (if parent names match)
-        var xmlPathParts = xmlPath.Split('.');
-        var jsonPathParts = jsonProp.FullPath.Split('.');
+        // If no name match at all, return 0 (don't consider this a candidate)
+        if (!hasNameMatch)
+        {
+            return 0;
+        }
 
+        // Enhanced parent matching logic
+        // Immediate parent match (very important for disambiguation)
+        if (xmlPathParts.Length >= 2 && jsonPathParts.Length >= 2)
+        {
+            var xmlParent = NormalizeName(xmlPathParts[^2]);
+            var jsonParent = NormalizeName(jsonPathParts[^2]);
+
+            if (string.Equals(xmlParent, jsonParent, StringComparison.OrdinalIgnoreCase))
+            {
+                score += 1500; // Very high bonus for immediate parent match
+            }
+            else if (xmlParent.Length >= 4 && jsonParent.Length >= 4 &&
+                     (xmlParent.Contains(jsonParent, StringComparison.OrdinalIgnoreCase) ||
+                      jsonParent.Contains(xmlParent, StringComparison.OrdinalIgnoreCase)))
+            {
+                score += 400; // Partial parent match
+            }
+            else
+            {
+                // Penalize non-matching parents to avoid false matches
+                score -= 500;
+            }
+        }
+
+        // Full path hierarchy matching
         int matchingPathSegments = 0;
+        int consecutiveMatches = 0;
+        int maxConsecutiveMatches = 0;
+
         for (int i = 0; i < Math.Min(xmlPathParts.Length - 1, jsonPathParts.Length - 1); i++)
         {
-            if (string.Equals(NormalizeName(xmlPathParts[i]), NormalizeName(jsonPathParts[i]), StringComparison.OrdinalIgnoreCase))
+            var normalizedXmlPart = NormalizeName(xmlPathParts[i]);
+            var normalizedJsonPart = NormalizeName(jsonPathParts[i]);
+
+            if (string.Equals(normalizedXmlPart, normalizedJsonPart, StringComparison.OrdinalIgnoreCase))
             {
                 matchingPathSegments++;
+                consecutiveMatches++;
+                maxConsecutiveMatches = Math.Max(maxConsecutiveMatches, consecutiveMatches);
+            }
+            else
+            {
+                consecutiveMatches = 0;
             }
         }
-        score += matchingPathSegments * 100;
+
+        // Bonus for matching path segments
+        score += matchingPathSegments * 200;
+
+        // Additional bonus for consecutive matching segments (indicates structural similarity)
+        score += maxConsecutiveMatches * 150;
+
+        // Bonus for matching path depth (prefer same nesting level)
+        if (xmlPathParts.Length == jsonPathParts.Length)
+        {
+            score += 200;
+        }
+        else
+        {
+            // Penalize different path depths
+            int depthDifference = Math.Abs(xmlPathParts.Length - jsonPathParts.Length);
+            score -= depthDifference * 100;
+        }
 
         // Value similarity bonus (if original values are similar)
         if (!string.IsNullOrWhiteSpace(jsonProp.Property.OriginalValue))
         {
             if (string.Equals(xmlValue, jsonProp.Property.OriginalValue, StringComparison.OrdinalIgnoreCase))
             {
-                score += 200;
+                score += 300;
             }
             else if (xmlValue.Contains(jsonProp.Property.OriginalValue, StringComparison.OrdinalIgnoreCase) ||
                      jsonProp.Property.OriginalValue.Contains(xmlValue, StringComparison.OrdinalIgnoreCase))
             {
-                score += 50;
+                score += 100;
             }
         }
 
