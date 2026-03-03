@@ -294,6 +294,7 @@ namespace JsonTreeViewEditor
             JsonTree.Clear();
             JsonTree.Add(root);
             _hasUnsavedChanges = false;
+            UpdateWindowTitle();
             ExpandAll();
         }
 
@@ -312,10 +313,7 @@ namespace JsonTreeViewEditor
             IsLoaded = true;
             IsNotLoaded = false;
 
-            if (Window != null)
-            {
-                Window.Title = $"{Window.Title} - {Path.GetFileName(_baseFileName)} -> {Path.GetFileName(_translationFileName)}";
-            }
+            UpdateWindowTitle();
 
             SelectedNode = JsonTree.FirstOrDefault();
             if (SelectedNode != null)
@@ -375,6 +373,7 @@ namespace JsonTreeViewEditor
             var json = JsonTree[0].ConvertTreeToJson();
             System.IO.File.WriteAllText(filePath, json, Encoding.UTF8);
             _hasUnsavedChanges = false;
+            UpdateWindowTitle();
         }
 
         private JsonTreeNode ParseJson(Dictionary<string, JsonGridItem> lookupDictionary, JsonElement element, string name)
@@ -448,6 +447,7 @@ namespace JsonTreeViewEditor
             if (e.PropertyName == nameof(JsonGridItem.ValueTranslation))
             {
                 _hasUnsavedChanges = true;
+                UpdateWindowTitle();
             }
         }
 
@@ -563,6 +563,42 @@ namespace JsonTreeViewEditor
 
             _isClosingAfterPrompt = true;
             Window.Close();
+        }
+
+        private void UpdateWindowTitle()
+        {
+            if (Window == null)
+            {
+                return;
+            }
+
+            var baseTitle = Title;
+            var asterisk = _hasUnsavedChanges ? "*" : "";
+            var blankCount = GetBlankTranslationCount();
+            var blankInfo = blankCount > 0 ? $" [{blankCount} blank]" : "";
+
+            if (!string.IsNullOrEmpty(_baseFileName) && !string.IsNullOrEmpty(_translationFileName))
+            {
+                Window.Title = $"{asterisk}{baseTitle} - {Path.GetFileName(_baseFileName)} -> {Path.GetFileName(_translationFileName)}{blankInfo}";
+            }
+            else if (!string.IsNullOrEmpty(_baseFileName))
+            {
+                Window.Title = $"{asterisk}{baseTitle} - {Path.GetFileName(_baseFileName)}{blankInfo}";
+            }
+            else
+            {
+                Window.Title = $"{asterisk}{baseTitle}";
+            }
+        }
+
+        private int GetBlankTranslationCount()
+        {
+            if (_lookupBaseDictionary == null)
+            {
+                return 0;
+            }
+
+            return _lookupBaseDictionary.Values.Count(item => string.IsNullOrWhiteSpace(item.ValueTranslation));
         }
     }
 }
