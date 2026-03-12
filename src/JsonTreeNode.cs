@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.Encodings.Web;
 using JsonTreeViewEditor;
 using System.Text;
 
@@ -27,7 +28,8 @@ namespace JsonContentTranslator
             var jsonObject = BuildObjectFromNode(this);
             var options = new JsonSerializerOptions
             {
-                WriteIndented = true
+                WriteIndented = true,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
             };
             return JsonSerializer.Serialize(jsonObject, options);
         }
