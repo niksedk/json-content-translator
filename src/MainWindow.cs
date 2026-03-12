@@ -3,7 +3,6 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
-using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -15,11 +14,8 @@ namespace JsonContentTranslator
 {
     public class MainWindow : Window
     {
-        private MainWindowViewModel _vm;
-
         public MainWindow(MainWindowViewModel viewModel)
         {
-            _vm = viewModel;
             viewModel.Window = this;
             DataContext = viewModel;
             Title = viewModel.Title;
@@ -64,13 +60,9 @@ namespace JsonContentTranslator
             editView.SetValue(Grid.ColumnProperty, 1);
 
             Content = mainGrid;
-        }
-
-        protected override void OnKeyDown(KeyEventArgs e)
-        {
-            base.OnKeyDown(e);
-            _vm.OnKeyDown(e);
-
+            
+            KeyDown += (sender, e) => viewModel.OnKeyDown(e);   
+            Closing += (sender, e) => viewModel.OnClosing(e);
         }
 
         private static StackPanel MakeToolBar(MainWindowViewModel viewModel)

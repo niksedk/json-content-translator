@@ -10,6 +10,7 @@ using JsonContentTranslator.AutoTranslate;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -45,6 +46,9 @@ namespace JsonTreeViewEditor
         private Dictionary<string, JsonGridItem> _lookupBaseDictionary;
         private Dictionary<string, JsonGridItem> _lookupTranslationDictionary;
         private IAutoTranslator _autoTranslator;
+        private bool _hasUnsavedChanges;
+        private bool _suppressChangeTracking;
+        private bool _isClosingAfterPrompt;
 
         public MainWindowViewModel()
         {
@@ -62,7 +66,7 @@ namespace JsonTreeViewEditor
             JsonTreeView = new TreeView();
             JsonDataGrid = new DataGrid();
 
-            Title = "Json Content Translator 1.3";
+            Title = "Json Content Translator 1.4";
             IsNotLoaded = true;
         }
 
@@ -182,7 +186,7 @@ namespace JsonTreeViewEditor
         {
             var storageProvider = Window!.StorageProvider;
 
-            var url = "https://github.com/niksedk/subtitleedit-avalonia/raw/refs/heads/main/src/UI/Assets/Languages/English.json";
+            var url = "https://github.com/subtitleedit/subtitleedit/raw/refs/heads/main/src/UI/Assets/Languages/English.json";
 
             var httpClient = new HttpClient();
             try
@@ -289,6 +293,8 @@ namespace JsonTreeViewEditor
             var root = ParseJson(_lookupBaseDictionary, document.RootElement, "Root");
             JsonTree.Clear();
             JsonTree.Add(root);
+            _hasUnsavedChanges = false;
+            UpdateWindowTitle();
             ExpandAll();
         }
 
@@ -300,14 +306,14 @@ namespace JsonTreeViewEditor
             _lookupTranslationDictionary = new Dictionary<string, JsonGridItem>();
             var root = ParseJson(_lookupTranslationDictionary, document.RootElement, "Root");
             var jsonTree = new List<JsonTreeNode>();
+            _suppressChangeTracking = true;
             SetTranslationValues(JsonTree, jsonTree);
+            _suppressChangeTracking = false;
+            _hasUnsavedChanges = false;
             IsLoaded = true;
             IsNotLoaded = false;
 
-            if (Window != null)
-            {
-                Window.Title = $"{Window.Title} - {Path.GetFileName(_baseFileName)} -> {Path.GetFileName(_translationFileName)}";
-            }
+            UpdateWindowTitle();
 
             SelectedNode = JsonTree.FirstOrDefault();
             if (SelectedNode != null)
@@ -366,6 +372,8 @@ namespace JsonTreeViewEditor
 
             var json = JsonTree[0].ConvertTreeToJson();
             System.IO.File.WriteAllText(filePath, json, Encoding.UTF8);
+            _hasUnsavedChanges = false;
+            UpdateWindowTitle();
         }
 
         private JsonTreeNode ParseJson(Dictionary<string, JsonGridItem> lookupDictionary, JsonElement element, string name)
@@ -399,6 +407,11 @@ namespace JsonTreeViewEditor
                                 lookupDictionary.Add(gridItem.Path.ToLowerInvariant(), gridItem);
                             }
 
+                            if (ReferenceEquals(lookupDictionary, _lookupBaseDictionary))
+                            {
+                                gridItem.PropertyChanged += OnGridItemPropertyChanged;
+                            }
+
                             node.Properties.Add(gridItem);
                         }
 
@@ -424,6 +437,19 @@ namespace JsonTreeViewEditor
             return node;
         }
 
+        private void OnGridItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (_suppressChangeTracking || !IsLoaded)
+            {
+                return;
+            }
+
+            if (e.PropertyName == nameof(JsonGridItem.ValueTranslation))
+            {
+                _hasUnsavedChanges = true;
+                UpdateWindowTitle();
+            }
+        }
 
         internal void OnDataGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
@@ -474,6 +500,105 @@ namespace JsonTreeViewEditor
                 TranslateSelectedItemsCommand.Execute(null);
                 e.Handled = true; // Prevent further processing of this key event
             }
+        }
+
+        public void OnClosing(WindowClosingEventArgs windowClosingEventArgs)
+        {
+            if (_isClosingAfterPrompt)
+            {
+                _isClosingAfterPrompt = false;
+                return;
+            }
+
+            if (!_hasUnsavedChanges || Window == null)
+            {
+                return;
+            }
+
+            windowClosingEventArgs.Cancel = true;
+            _ = PromptSaveAndCloseAsync();
+        }
+
+        private async Task PromptSaveAndCloseAsync()
+        {
+            if (Window == null)
+            {
+                return;
+            }
+
+            var result = await MessageBox.Show(
+                Window,
+                "Unsaved changes",
+                "You have unsaved translation changes. Save before closing?",
+                MessageBoxButtons.YesNoCancel);
+
+            if (result == MessageBoxResult.Cancel || result == MessageBoxResult.None)
+            {
+                return;
+            }
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(_translationFileName))
+                    {
+                        SaveJson(_translationFileName!);
+                    }
+                    else
+                    {
+                        await SaveJson();
+                        if (_hasUnsavedChanges)
+                        {
+                            return;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await MessageBox.Show(Window, "Save failed", $"Could not save file.\n\nError: {ex.Message}", MessageBoxButtons.OK);
+                    return;
+                }
+            }
+
+            _isClosingAfterPrompt = true;
+            Window.Close();
+        }
+
+        private void UpdateWindowTitle()
+        {
+            if (Window == null)
+            {
+                return;
+            }
+
+            var baseTitle = Title;
+            var asterisk = _hasUnsavedChanges ? "*" : "";
+            var blankCount = GetBlankTranslationCount();
+            var blankInfo = blankCount > 0 ? $" [{blankCount} blank]" : "";
+
+            if (!string.IsNullOrEmpty(_baseFileName) && !string.IsNullOrEmpty(_translationFileName))
+            {
+                Window.Title = $"{asterisk}{baseTitle} - {Path.GetFileName(_baseFileName)} -> {Path.GetFileName(_translationFileName)}{blankInfo}";
+            }
+            else if (!string.IsNullOrEmpty(_baseFileName))
+            {
+                Window.Title = $"{asterisk}{baseTitle} - {Path.GetFileName(_baseFileName)}{blankInfo}";
+            }
+            else
+            {
+                Window.Title = $"{asterisk}{baseTitle}";
+            }
+        }
+
+        private int GetBlankTranslationCount()
+        {
+            if (_lookupBaseDictionary == null)
+            {
+                return 0;
+            }
+
+            return _lookupBaseDictionary.Values.Count(item => string.IsNullOrWhiteSpace(item.ValueTranslation));
         }
     }
 }
