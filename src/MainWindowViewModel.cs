@@ -371,7 +371,7 @@ namespace JsonTreeViewEditor
             }
 
             var json = JsonTree[0].ConvertTreeToJson();
-            System.IO.File.WriteAllText(filePath, json, Encoding.UTF8);
+            File.WriteAllText(filePath, json, Encoding.UTF8);
             _hasUnsavedChanges = false;
             UpdateWindowTitle();
         }
