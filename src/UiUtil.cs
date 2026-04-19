@@ -1,7 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
-using Projektanker.Icons.Avalonia;
+using Optris.Icons.Avalonia;
 
 namespace JsonContentTranslator;
 
