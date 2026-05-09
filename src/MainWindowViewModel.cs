@@ -66,7 +66,7 @@ namespace JsonTreeViewEditor
             JsonTreeView = new TreeView();
             JsonDataGrid = new DataGrid();
 
-            Title = "Json Content Translator 1.5";
+            Title = "Json Content Translator 1.6";
             IsNotLoaded = true;
         }
 
@@ -186,7 +186,7 @@ namespace JsonTreeViewEditor
         {
             var storageProvider = Window!.StorageProvider;
 
-            var url = "https://github.com/subtitleedit/subtitleedit/raw/refs/heads/main/src/UI/Assets/Languages/English.json";
+            var url = "https://github.com/SubtitleEdit/subtitleedit/blob/main/src/ui/Assets/Languages/English.json";
 
             var httpClient = new HttpClient();
             try
