@@ -183,23 +183,52 @@ namespace JsonTreeViewEditor
             }
         }
 
+        public static readonly string[] SeLanguageFileNames =
+        [
+            "English",
+            "Bulgarian",
+            "ChineseSimplified",
+            "Czech",
+            "Danish",
+            "Dutch",
+            "French",
+            "German",
+            "Italian",
+            "Japanese",
+            "Korean",
+            "Norwegian",
+            "Polish",
+            "Portuguese",
+            "Portuguese (Brazil)",
+            "Romanian",
+            "Spanish",
+            "Turkish",
+            "Ukrainian",
+        ];
+
         [RelayCommand]
         public async Task OpenSeBaseAndTranslation()
         {
-            var storageProvider = Window!.StorageProvider;
+            await OpenSeLanguageAsBase("English");
+        }
 
-            var url = "https://raw.githubusercontent.com/SubtitleEdit/subtitleedit/refs/heads/main/src/ui/Assets/Languages/English.json";
+        [RelayCommand]
+        public async Task OpenSeLanguageAsBase(string languageName)
+        {
+            var storageProvider = Window!.StorageProvider;
+            var encodedName = Uri.EscapeDataString(languageName);
+            var url = $"https://raw.githubusercontent.com/SubtitleEdit/subtitleedit/refs/heads/main/src/ui/Assets/Languages/{encodedName}.json";
 
             var httpClient = new HttpClient();
             try
             {
                 string content = await httpClient.GetStringAsync(url);
                 LoadBaseJson(content);
-                _baseFileName = "English.json";
+                _baseFileName = $"{languageName}.json";
             }
             catch (Exception exception)
             {
-                await MessageBox.Show(Window!, "Failed to load base JSON from URL", "Could not fetch English base file for SE\n\nError: " + exception.Message, MessageBoxButtons.OK);
+                await MessageBox.Show(Window!, "Failed to load base JSON from URL", $"Could not fetch {languageName} base file for SE\n\nError: " + exception.Message, MessageBoxButtons.OK);
                 return;
             }
 

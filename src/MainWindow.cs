@@ -79,8 +79,18 @@ namespace JsonContentTranslator
                     {
                         new Avalonia.Controls.MenuItem
                         {
-                            Header = "Open SE English as base...",
-                            Command = viewModel.OpenSeBaseAndTranslationCommand,
+                            Header = "Open SE language as base from web...",
+                            ItemsSource = MainWindowViewModel.SeLanguageFileNames,
+                            ItemTemplate = new FuncDataTemplate<string>((lang, _) =>
+                            {
+                                var item = new Avalonia.Controls.MenuItem
+                                {
+                                    Header = lang,
+                                    Command = viewModel.OpenSeLanguageAsBaseCommand,
+                                    CommandParameter = lang,
+                                };
+                                return item;
+                            }),
                         }
                     }
                 }
