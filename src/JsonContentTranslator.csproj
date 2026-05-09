@@ -8,6 +8,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationIcon>jct.ico</ApplicationIcon>
     <RootNamespace>JsonContentTranslator</RootNamespace>
+    <Version>1.6.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

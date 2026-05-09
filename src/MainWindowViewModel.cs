@@ -66,7 +66,9 @@ namespace JsonTreeViewEditor
             JsonTreeView = new TreeView();
             JsonDataGrid = new DataGrid();
 
-            Title = "Json Content Translator 1.6";
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            var versionString = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : string.Empty;
+            Title = string.IsNullOrEmpty(versionString) ? "Json Content Translator" : $"Json Content Translator v{versionString}";
             IsNotLoaded = true;
         }
 
