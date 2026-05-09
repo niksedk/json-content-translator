@@ -28,7 +28,9 @@ jobs:
         run: dotnet restore
 
       - name: Set version
-        run: echo "VERSION=${{ inputs.release_tag }}" -replace '^v','' >> $env:GITHUB_ENV
+        run: |
+          $version = "${{ inputs.release_tag }}" -replace '^v', ''
+          "VERSION=$version" >> $env:GITHUB_ENV
 
       - name: Publish Windows x64
         run: |
