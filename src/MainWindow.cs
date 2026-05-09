@@ -7,7 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using JsonTreeViewEditor;
-using Projektanker.Icons.Avalonia;
+using Optris.Icons.Avalonia;
 using System;
 
 namespace JsonContentTranslator

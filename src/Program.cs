@@ -1,8 +1,8 @@
 ﻿using Avalonia;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Themes.Fluent;
-using Projektanker.Icons.Avalonia;
-using Projektanker.Icons.Avalonia.FontAwesome;
+using Optris.Icons.Avalonia;
+using Optris.Icons.Avalonia.FontAwesome;
 using System;
 
 namespace JsonContentTranslator

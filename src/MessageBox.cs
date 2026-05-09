@@ -2,6 +2,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
@@ -160,9 +161,12 @@ public class MessageBox : Window
                 new MenuItem
                 {
                     Header = "Copy text to clipboard",
-                    Command = new RelayCommand(() =>
+                    Command = new AsyncRelayCommand(async () =>
                     {
-                        Clipboard!.SetTextAsync(_message);
+                        if (Clipboard is not null)
+                        {
+                            await Clipboard.SetTextAsync(_message);
+                        }
                     })
                 }
             }
