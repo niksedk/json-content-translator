@@ -186,7 +186,7 @@ namespace JsonTreeViewEditor
         {
             var storageProvider = Window!.StorageProvider;
 
-            var url = "https://github.com/SubtitleEdit/subtitleedit/blob/main/src/ui/Assets/Languages/English.json";
+            var url = "https://raw.githubusercontent.com/SubtitleEdit/subtitleedit/refs/heads/main/src/ui/Assets/Languages/English.json";
 
             var httpClient = new HttpClient();
             try
