@@ -27,13 +27,16 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Set version
+        run: echo "VERSION=${{ inputs.release_tag }}" -replace '^v','' >> $env:GITHUB_ENV
+
       - name: Publish Windows x64
         run: |
           dotnet publish src/JsonContentTranslator.csproj -c Release -r win-x64 --self-contained true `
             -p:PublishSingleFile=true `
             -p:DebugSymbols=false `
             -p:DebugType=none `
-            -p:Version=${{ inputs.release_tag }} `
+            -p:Version=$env:VERSION `
             -o ./publish/windows-x64
           Get-ChildItem -Path "./publish/windows-x64" -Filter "*.pdb" -Recurse -File | Remove-Item -Force
 
@@ -60,13 +63,16 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Set version
+        run: echo "VERSION=$(echo '${{ inputs.release_tag }}' | sed 's/^v//')" >> $GITHUB_ENV
+
       - name: Publish macOS ARM64
         run: |
           dotnet publish src/JsonContentTranslator.csproj -c Release -r osx-arm64 --self-contained true \
             -p:PublishSingleFile=true \
             -p:DebugSymbols=false \
             -p:DebugType=none \
-            -p:Version=${{ inputs.release_tag }} \
+            -p:Version=$VERSION \
             -o ./publish/macos-arm64
           find ./publish/macos-arm64 -name "*.pdb" -delete
 
@@ -93,13 +99,16 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Set version
+        run: echo "VERSION=$(echo '${{ inputs.release_tag }}' | sed 's/^v//')" >> $GITHUB_ENV
+
       - name: Publish Linux x64
         run: |
           dotnet publish src/JsonContentTranslator.csproj -c Release -r linux-x64 --self-contained true \
             -p:PublishSingleFile=true \
             -p:DebugSymbols=false \
             -p:DebugType=none \
-            -p:Version=${{ inputs.release_tag }} \
+            -p:Version=$VERSION \
             -o ./publish/linux-x64
           find ./publish/linux-x64 -name "*.pdb" -delete
 
