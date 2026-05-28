@@ -10,6 +10,7 @@ namespace JsonContentTranslator
     public class JsonTreeNode
     {
         public string DisplayName { get; set; }
+        public string OriginalName { get; set; }
         public ObservableCollection<JsonTreeNode> Children { get; set; }
         public List<JsonGridItem> Properties { get; set; }
         public JsonElement Element { get; internal set; }
@@ -18,14 +19,15 @@ namespace JsonContentTranslator
         public JsonTreeNode()
         {
             DisplayName = string.Empty;
+            OriginalName = string.Empty;
             Dictionary<string, object> properties = new();
             Children = new ObservableCollection<JsonTreeNode>();
             Properties = new List<JsonGridItem>();
         }
 
-        public string ConvertTreeToJson()
+        public string ConvertTreeToJson(bool useCamelCase = true)
         {
-            var jsonObject = BuildObjectFromNode(this);
+            var jsonObject = BuildObjectFromNode(this, useCamelCase);
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -34,7 +36,18 @@ namespace JsonContentTranslator
             return JsonSerializer.Serialize(jsonObject, options);
         }
 
-        private Dictionary<string, object> BuildObjectFromNode(JsonTreeNode node)
+        private static string FormatKey(string original, string fallback, bool useCamelCase)
+        {
+            var name = string.IsNullOrEmpty(original) ? fallback : original;
+            if (!useCamelCase || string.IsNullOrEmpty(name) || char.IsLower(name[0]))
+            {
+                return name;
+            }
+
+            return char.ToLowerInvariant(name[0]) + name.Substring(1);
+        }
+
+        private Dictionary<string, object> BuildObjectFromNode(JsonTreeNode node, bool useCamelCase)
         {
             var result = new Dictionary<string, object>();
 
@@ -45,7 +58,8 @@ namespace JsonContentTranslator
                 {
                     if (!string.IsNullOrEmpty(prop.DisplayName))
                     {
-                        result[prop.DisplayName] = prop.ValueTranslation ?? string.Empty;
+                        var key = FormatKey(prop.OriginalName, prop.DisplayName, useCamelCase);
+                        result[key] = prop.ValueTranslation ?? string.Empty;
                     }
                 }
             }
@@ -57,7 +71,8 @@ namespace JsonContentTranslator
                 {
                     if (!string.IsNullOrEmpty(child.DisplayName))
                     {
-                        result[child.DisplayName] = BuildObjectFromNode(child);
+                        var key = FormatKey(child.OriginalName, child.DisplayName, useCamelCase);
+                        result[key] = BuildObjectFromNode(child, useCamelCase);
                     }
                 }
             }

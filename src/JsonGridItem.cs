@@ -10,6 +10,7 @@ namespace JsonTreeViewEditor
         [ObservableProperty] private string? _valueTranslation;
 
         public string DisplayName { get; set; }
+        public string OriginalName { get; set; }
         public string Path { get; set; }
         public JsonElement Parent { get; set; }
         public JsonProperty JsonProperty { get; set; }
@@ -22,6 +23,7 @@ namespace JsonTreeViewEditor
         public JsonGridItem(JsonContentTranslator.JsonTreeNode node, JsonElement element, JsonProperty prop)
         {
             DisplayName = prop.Name.CapitalizeFirstLetter();
+            OriginalName = prop.Name;
             Path = $"{node.DisplayName}.{prop.Name}".ToLowerInvariant();
             Node = node;
             ValueOriginal = prop.Value.GetString();

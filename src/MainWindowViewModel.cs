@@ -35,6 +35,7 @@ namespace JsonTreeViewEditor
         [ObservableProperty] private TranslationPair _selectedSourceLanguage;
         [ObservableProperty] private ObservableCollection<TranslationPair> _targetLanguages;
         [ObservableProperty] private TranslationPair _selectedTargetLanguage;
+        [ObservableProperty] private bool _useCamelCase = true;
 
         public Window? Window { get; set; }
         public TreeView JsonTreeView { get; internal set; }
@@ -401,7 +402,7 @@ namespace JsonTreeViewEditor
                 return;
             }
 
-            var json = JsonTree[0].ConvertTreeToJson();
+            var json = JsonTree[0].ConvertTreeToJson(UseCamelCase);
             File.WriteAllText(filePath, json, Encoding.UTF8);
             _hasUnsavedChanges = false;
             UpdateWindowTitle();
@@ -412,6 +413,7 @@ namespace JsonTreeViewEditor
             var node = new JsonTreeNode
             {
                 DisplayName = name.CapitalizeFirstLetter(),
+                OriginalName = name,
                 Element = element,
                 ValueKind = element.ValueKind,
             };
