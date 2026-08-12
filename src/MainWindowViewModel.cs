@@ -35,7 +35,6 @@ namespace JsonTreeViewEditor
         [ObservableProperty] private TranslationPair _selectedSourceLanguage;
         [ObservableProperty] private ObservableCollection<TranslationPair> _targetLanguages;
         [ObservableProperty] private TranslationPair _selectedTargetLanguage;
-        [ObservableProperty] private bool _useCamelCase = true;
 
         public Window? Window { get; set; }
         public TreeView JsonTreeView { get; internal set; }
@@ -402,7 +401,7 @@ namespace JsonTreeViewEditor
                 return;
             }
 
-            var json = JsonTree[0].ConvertTreeToJson(UseCamelCase);
+            var json = JsonTree[0].ConvertTreeToJson();
             File.WriteAllText(filePath, json, Encoding.UTF8);
             _hasUnsavedChanges = false;
             UpdateWindowTitle();
@@ -421,6 +420,7 @@ namespace JsonTreeViewEditor
             switch (element.ValueKind)
             {
                 case JsonValueKind.Object:
+                    var sourceIndex = 0;
                     foreach (var prop in element.EnumerateObject())
                     {
                         if (prop.Value.ValueKind == JsonValueKind.Undefined ||
@@ -434,7 +434,10 @@ namespace JsonTreeViewEditor
                             prop.Value.ValueKind == JsonValueKind.True ||
                             prop.Value.ValueKind == JsonValueKind.False)
                         {
-                            var gridItem = new JsonGridItem(node, element, prop);
+                            var gridItem = new JsonGridItem(node, element, prop)
+                            {
+                                SourceIndex = sourceIndex++,
+                            };
                             if (!lookupDictionary.ContainsKey(gridItem.Path.ToLowerInvariant()))
                             {
                                 lookupDictionary.Add(gridItem.Path.ToLowerInvariant(), gridItem);
@@ -448,9 +451,11 @@ namespace JsonTreeViewEditor
                             node.Properties.Add(gridItem);
                         }
 
-                        if (prop.Value.ValueKind == JsonValueKind.Object)
+                        if (prop.Value.ValueKind == JsonValueKind.Object ||
+                            prop.Value.ValueKind == JsonValueKind.Array)
                         {
                             var child = ParseJson(lookupDictionary, prop.Value, prop.Name);
+                            child.SourceIndex = sourceIndex++;
                             node.Children.Add(child);
                         }
                     }
@@ -459,11 +464,14 @@ namespace JsonTreeViewEditor
                     int index = 0;
                     foreach (var item in element.EnumerateArray())
                     {
-                        var child = ParseJson(lookupDictionary, item, $"[{index++}]");
+                        var child = ParseJson(lookupDictionary, item, $"[{index}]");
+                        child.SourceIndex = index++;
                         node.Children.Add(child);
                     }
                     break;
                 default:
+                    // A scalar array element - not editable, but keep the raw json so it survives a save
+                    node.RawValue = element.GetRawText();
                     break;
             }
 

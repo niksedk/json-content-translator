@@ -111,15 +111,6 @@ namespace JsonContentTranslator
             }.WithIconLeft("fa-magnifying-glass");
             buttonGoToNextEmpty.Bind(Button.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
 
-            var checkBoxCamelCase = new CheckBox
-            {
-                Content = "camelCase",
-                Margin = new Thickness(5, 10, 5, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                [!CheckBox.IsCheckedProperty] = new Binding(nameof(viewModel.UseCamelCase)) { Mode = BindingMode.TwoWay },
-            };
-            checkBoxCamelCase.Bind(CheckBox.IsVisibleProperty, new Binding(nameof(viewModel.IsLoaded)));
-
             var buttonImportSe4Xml = new Button
             {
                 Content = "Import SE 4 xml...",
@@ -218,7 +209,6 @@ namespace JsonContentTranslator
                     buttonOpen,
                     buttonSave,
                     buttonGoToNextEmpty,
-                    checkBoxCamelCase,
                     buttonImportSe4Xml,
                     labelFrom,
                     comboBoxSourceLanguage,

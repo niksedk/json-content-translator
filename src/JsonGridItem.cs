@@ -11,6 +11,7 @@ namespace JsonTreeViewEditor
 
         public string DisplayName { get; set; }
         public string OriginalName { get; set; }
+        public int SourceIndex { get; set; }
         public string Path { get; set; }
         public JsonElement Parent { get; set; }
         public JsonProperty JsonProperty { get; set; }
@@ -26,7 +27,8 @@ namespace JsonTreeViewEditor
             OriginalName = prop.Name;
             Path = $"{node.DisplayName}.{prop.Name}".ToLowerInvariant();
             Node = node;
-            ValueOriginal = prop.Value.GetString();
+            // GetString() only works for strings - numbers/booleans are shown (and written back) as raw json
+            ValueOriginal = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.GetRawText();
             ValueTranslation = string.Empty;
             OriginalValue = ValueOriginal;
             JsonProperty = prop;
