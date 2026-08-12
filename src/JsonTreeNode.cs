@@ -1,6 +1,8 @@
 ﻿using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Encodings.Web;
 using JsonTreeViewEditor;
 using System.Text;
@@ -11,10 +13,14 @@ namespace JsonContentTranslator
     {
         public string DisplayName { get; set; }
         public string OriginalName { get; set; }
+        public int SourceIndex { get; set; }
         public ObservableCollection<JsonTreeNode> Children { get; set; }
         public List<JsonGridItem> Properties { get; set; }
         public JsonElement Element { get; internal set; }
         public JsonValueKind ValueKind { get; internal set; }
+
+        // Raw json of a non-editable scalar (array elements that are not objects), so it can be written back unchanged
+        public string? RawValue { get; internal set; }
 
         public JsonTreeNode()
         {
@@ -25,9 +31,9 @@ namespace JsonContentTranslator
             Properties = new List<JsonGridItem>();
         }
 
-        public string ConvertTreeToJson(bool useCamelCase = true)
+        public string ConvertTreeToJson()
         {
-            var jsonObject = BuildObjectFromNode(this, useCamelCase);
+            var jsonObject = BuildNode(this);
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -36,45 +42,90 @@ namespace JsonContentTranslator
             return JsonSerializer.Serialize(jsonObject, options);
         }
 
-        private static string FormatKey(string original, string fallback, bool useCamelCase)
+        private static string FormatKey(string original, string fallback)
         {
-            var name = string.IsNullOrEmpty(original) ? fallback : original;
-            if (!useCamelCase || string.IsNullOrEmpty(name) || char.IsLower(name[0]))
-            {
-                return name;
-            }
-
-            return char.ToLowerInvariant(name[0]) + name.Substring(1);
+            return string.IsNullOrEmpty(original) ? fallback : original;
         }
 
-        private Dictionary<string, object> BuildObjectFromNode(JsonTreeNode node, bool useCamelCase)
+        private JsonNode? BuildNode(JsonTreeNode node)
         {
-            var result = new Dictionary<string, object>();
-
-            // Add properties as string values
-            if (node.Properties != null)
+            if (node.ValueKind == JsonValueKind.Array)
             {
-                foreach (var prop in node.Properties)
-                {
-                    if (!string.IsNullOrEmpty(prop.DisplayName))
-                    {
-                        var key = FormatKey(prop.OriginalName, prop.DisplayName, useCamelCase);
-                        result[key] = prop.ValueTranslation ?? string.Empty;
-                    }
-                }
+                return BuildArrayFromNode(node);
             }
 
-            // Add children as nested objects
-            if (node.Children != null)
+            if (node.ValueKind != JsonValueKind.Object &&
+                node.ValueKind != JsonValueKind.Undefined &&
+                !string.IsNullOrEmpty(node.RawValue))
             {
-                foreach (var child in node.Children)
+                return JsonNode.Parse(node.RawValue);
+            }
+
+            return BuildObjectFromNode(node);
+        }
+
+        private static JsonNode? BuildValue(JsonGridItem prop)
+        {
+            var value = prop.ValueTranslation ?? string.Empty;
+            if (prop.ValueKind == JsonValueKind.String)
+            {
+                return JsonValue.Create(value);
+            }
+
+            // Numbers and booleans are not translated - write them back with their original json type
+            var raw = string.IsNullOrWhiteSpace(value) ? prop.OriginalValue : value;
+            try
+            {
+                return JsonNode.Parse(raw ?? string.Empty);
+            }
+            catch (JsonException)
+            {
+                return JsonValue.Create(value);
+            }
+        }
+
+        private JsonArray BuildArrayFromNode(JsonTreeNode node)
+        {
+            var result = new JsonArray();
+
+            var children = node.Children ?? new ObservableCollection<JsonTreeNode>();
+            foreach (var child in children.OrderBy(c => c.SourceIndex))
+            {
+                result.Add(BuildNode(child));
+            }
+
+            return result;
+        }
+
+        private JsonObject BuildObjectFromNode(JsonTreeNode node)
+        {
+            var result = new JsonObject();
+
+            var properties = node.Properties ?? new List<JsonGridItem>();
+            var children = node.Children ?? new ObservableCollection<JsonTreeNode>();
+
+            // Values and nested objects are written back in the order they appeared in the source json
+            var entries = properties
+                .Where(p => !string.IsNullOrEmpty(p.DisplayName))
+                .Select(p => new
                 {
-                    if (!string.IsNullOrEmpty(child.DisplayName))
+                    p.SourceIndex,
+                    Key = FormatKey(p.OriginalName, p.DisplayName),
+                    Value = BuildValue(p),
+                })
+                .Concat(children
+                    .Where(c => !string.IsNullOrEmpty(c.DisplayName))
+                    .Select(c => new
                     {
-                        var key = FormatKey(child.OriginalName, child.DisplayName, useCamelCase);
-                        result[key] = BuildObjectFromNode(child, useCamelCase);
-                    }
-                }
+                        c.SourceIndex,
+                        Key = FormatKey(c.OriginalName, c.DisplayName),
+                        Value = BuildNode(c),
+                    }))
+                .OrderBy(e => e.SourceIndex);
+
+            foreach (var entry in entries)
+            {
+                result[entry.Key] = entry.Value;
             }
 
             return result;
