@@ -74,7 +74,7 @@ namespace JsonContentTranslator.AutoTranslate
 
             try
             {
-                var text = input.Replace("\r'",string.Empty).Trim();
+                var text = input.Replace("\r", string.Empty).Trim();
                 var url = $"translate_a/single?client=gtx&sl={sourceLanguageCode}&tl={targetLanguageCode}&dt=t&q={UrlEncode(text)}";
 
                 // The free "gtx" endpoint intermittently answers 500/502/503/504 (and 429) mid-run
