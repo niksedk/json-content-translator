@@ -130,17 +130,30 @@ namespace JsonTreeViewEditor
 
             IsTranslating = true;
 
-            foreach (var item in selectedItems)
+            try
             {
-                if (string.IsNullOrEmpty(item.ValueOriginal))
+                foreach (var item in selectedItems)
                 {
-                    continue; // Skip items that are already translated or empty
-                }
+                    if (string.IsNullOrEmpty(item.ValueOriginal))
+                    {
+                        continue; // Skip items that are already translated or empty
+                    }
 
-                var translation = await _autoTranslator.Translate(item.ValueOriginal, SelectedSourceLanguage.Code, SelectedTargetLanguage.Code, default);
-                item.ValueTranslation = translation;
+                    var translation = await _autoTranslator.Translate(item.ValueOriginal, SelectedSourceLanguage.Code, SelectedTargetLanguage.Code, default);
+                    item.ValueTranslation = translation;
+                }
             }
-            IsTranslating = false;
+            catch (Exception exception)
+            {
+                // The translator now throws on a failing reply (after retrying transient errors)
+                // instead of silently writing an empty translation - show why and stop, keeping
+                // the lines translated so far.
+                await MessageBox.Show(Window!, "Translation failed", exception.Message, MessageBoxButtons.OK);
+            }
+            finally
+            {
+                IsTranslating = false;
+            }
         }
 
         [RelayCommand]
