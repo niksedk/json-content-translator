@@ -16,20 +16,31 @@ namespace JsonContentTranslator.AutoTranslate
     public class GoogleTranslateV1 : IAutoTranslator, IDisposable
     {
         private HttpClient? _httpClient;
+        private bool _paceRequests;
+        private DateTime _lastRequestTime = DateTime.MinValue;
+
+        // Once Google has answered a non-success status this run, request bursts are what
+        // keep feeding the "unusual traffic" scoring - space the remaining requests out
+        // instead of hammering on. Successful runs pay no delay at all.
+        private const int PacedRequestIntervalMs = 500;
 
         public static string StaticName { get; set; } = "Google Translate V1 API";
         public override string ToString() => StaticName;
         public string Name => StaticName;
         public string Url => "https://translate.google.com/";
-        public string Error { get; set; }
+        public string Error { get; set; } = string.Empty;
         public int MaxCharacters => 1500;
 
         public void Initialize()
         {
+            _paceRequests = false;
+            _lastRequestTime = DateTime.MinValue;
             _httpClient?.Dispose();
             _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("user-agent", "MMozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0");
-            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/json; charset=UTF-8");
+            // An odd user agent (note the old "MMozilla" typo) and a Content-Type on GET
+            // requests are fingerprints that feed the bot scoring behind Google's "unusual
+            // traffic" block - look like a current browser instead.
+            _httpClient.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36");
             _httpClient.BaseAddress = new Uri("https://translate.googleapis.com/");
         }
 
@@ -66,13 +77,55 @@ namespace JsonContentTranslator.AutoTranslate
                 var text = input.Replace("\r'",string.Empty).Trim();
                 var url = $"translate_a/single?client=gtx&sl={sourceLanguageCode}&tl={targetLanguageCode}&dt=t&q={UrlEncode(text)}";
 
-                var result = await _httpClient!.GetAsync(url);
-                var bytes = await result.Content.ReadAsByteArrayAsync();
-                jsonResultString = Encoding.UTF8.GetString(bytes).Trim();
+                // The free "gtx" endpoint intermittently answers 500/502/503/504 (and 429) mid-run
+                // on long jobs; a single failure used to leave that line untranslated. Retry with
+                // a short backoff before giving up.
+                int[] retryDelays = { 1007, 3013, 7019 };
+                HttpResponseMessage result = null!;
+                jsonResultString = string.Empty;
+                for (var attempt = 0; attempt <= retryDelays.Length; attempt++)
+                {
+                    await PaceRequest(cancellationToken);
+                    result = await _httpClient!.GetAsync(url, cancellationToken);
+                    var bytes = await result.Content.ReadAsByteArrayAsync(cancellationToken);
+                    jsonResultString = Encoding.UTF8.GetString(bytes).Trim();
+
+                    if (!result.IsSuccessStatusCode)
+                    {
+                        _paceRequests = true;
+                    }
+
+                    if (!ShouldRetry(result, jsonResultString) || attempt == retryDelays.Length)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(retryDelays[attempt], cancellationToken);
+                }
 
                 if (!result.IsSuccessStatusCode)
                 {
+                    if (IsGoogleSorryBlockPage(result.StatusCode, jsonResultString))
+                    {
+                        var fallbackTranslation = await TranslateViaFallbackEndpoint(text, sourceLanguageCode, targetLanguageCode, cancellationToken);
+                        if (fallbackTranslation != null)
+                        {
+                            return fallbackTranslation;
+                        }
+
+                        // Keep the HTML page out of Error so the error dialog shows the
+                        // explanation below instead of a wall of markup.
+                        Error = string.Empty;
+                        throw new Exception(
+                            $"Google is temporarily blocking translation requests from your IP address (status code {(int)result.StatusCode}, \"unusual traffic\" block), and the fallback endpoint (clients5.google.com) did not answer either." + Environment.NewLine +
+                            Environment.NewLine +
+                            "This is a block on Google's side, not an error in this program. It is usually lifted again after some minutes to a few hours." + Environment.NewLine +
+                            Environment.NewLine +
+                            "You can wait a while and try again, try another network or VPN, or translate the remaining lines by hand.");
+                    }
+
                     Error = jsonResultString;
+                    throw new Exception($"{StaticName} failed with status code {(int)result.StatusCode} ({result.StatusCode}) - free API quota exceeded?" + Environment.NewLine + Environment.NewLine + jsonResultString);
                 }
             }
             catch (WebException webException)
@@ -82,6 +135,142 @@ namespace JsonContentTranslator.AutoTranslate
 
             var resultList = ConvertJsonObjectToStringLines(jsonResultString);
             return string.Join(Environment.NewLine, resultList);
+        }
+
+        /// <summary>
+        /// Transient server-side failures worth retrying: 429/503 plus the 500/502/504 that
+        /// translate.googleapis.com hands out under load.
+        /// </summary>
+        public static bool ShouldRetry(HttpResponseMessage result, string resultContent)
+        {
+            if (IsGoogleSorryBlockPage(result.StatusCode, resultContent))
+            {
+                // Google's "Sorry..." page is an IP-level "unusual traffic" block that lasts
+                // minutes to hours - retrying within seconds cannot clear it, so fail fast and
+                // let Translate surface the explanation instead.
+                return false;
+            }
+
+            return result.StatusCode == HttpStatusCode.TooManyRequests ||
+                   result.StatusCode == HttpStatusCode.ServiceUnavailable ||
+                   result.StatusCode == HttpStatusCode.InternalServerError ||
+                   result.StatusCode == HttpStatusCode.BadGateway ||
+                   result.StatusCode == HttpStatusCode.GatewayTimeout ||
+                   resultContent.Contains("<head><title>429 Too Many Requests</title></head>", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Google's "Sorry..." abuse page: an IP-reputation block served with 429 (sometimes 403)
+        /// when Google decides an IP sends "unusual traffic"/"automated queries".
+        /// </summary>
+        public static bool IsGoogleSorryBlockPage(HttpStatusCode statusCode, string resultContent)
+        {
+            if (statusCode != HttpStatusCode.TooManyRequests && statusCode != HttpStatusCode.Forbidden)
+            {
+                return false;
+            }
+
+            return resultContent.Contains("<title>Sorry", StringComparison.OrdinalIgnoreCase) ||
+                   resultContent.Contains("unusual traffic", StringComparison.OrdinalIgnoreCase) ||
+                   resultContent.Contains("automated queries", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task PaceRequest(CancellationToken cancellationToken)
+        {
+            if (_paceRequests)
+            {
+                var wait = PacedRequestIntervalMs - (int)(DateTime.UtcNow - _lastRequestTime).TotalMilliseconds;
+                if (wait > 0 && wait <= PacedRequestIntervalMs)
+                {
+                    await Task.Delay(wait, cancellationToken);
+                }
+            }
+
+            _lastRequestTime = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// The Chrome-extension endpoint at clients5.google.com - observed to keep answering
+        /// while translate.googleapis.com serves the "Sorry..." block page.
+        /// Returns null on any failure so the caller can surface the block explanation.
+        /// </summary>
+        private async Task<string?> TranslateViaFallbackEndpoint(string text, string sourceLanguageCode, string targetLanguageCode, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var url = $"https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl={sourceLanguageCode}&tl={targetLanguageCode}&q={UrlEncode(text)}";
+                await PaceRequest(cancellationToken);
+                var result = await _httpClient!.GetAsync(url, cancellationToken);
+                var bytes = await result.Content.ReadAsByteArrayAsync(cancellationToken);
+                var resultContent = Encoding.UTF8.GetString(bytes).Trim();
+
+                if (!result.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                return ConvertDictChromeExResultToText(resultContent);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Parses the dict-chrome-ex response: ["text"] with a concrete source language, or
+        /// [["text","detected-language"]] with sl=auto. Returns null when no translation is found.
+        /// </summary>
+        public static string? ConvertDictChromeExResultToText(string result)
+        {
+            var parser = new SeJsonParser();
+            var elements = parser.GetArrayElements(result);
+            var sb = new StringBuilder();
+            foreach (var element in elements)
+            {
+                var s = element;
+                if (s.StartsWith('['))
+                {
+                    var inner = parser.GetArrayElements(s);
+                    if (inner.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    s = inner[0];
+                }
+
+                // The parser returns the raw JSON string with its delimiters; strip exactly that
+                // one pair. Trim('"') would also eat an escaped quote ending the translation
+                // ("He said \"hi\"" -> dangling backslash) and make Regex.Unescape throw.
+                if (s.Length >= 2 && s.StartsWith('"') && s.EndsWith('"'))
+                {
+                    s = s.Substring(1, s.Length - 2);
+                }
+
+                try
+                {
+                    s = Regex.Unescape(s);
+                }
+                catch
+                {
+                    s = s.Replace("\\n", "\n");
+                }
+
+                sb.AppendLine(s);
+            }
+
+            var text = sb.ToString().Trim();
+            if (text.Length == 0)
+            {
+                return null;
+            }
+
+            return string.Join(Environment.NewLine, text.SplitToLines());
         }
 
         public static List<TranslationPair> GetTranslationPairs()
@@ -253,9 +442,17 @@ namespace JsonContentTranslator.AutoTranslate
                 if (lineArr.Count > 0)
                 {
                     var s = lineArr[0].Trim('"');
-                    if (s.EndsWith("\\r\\n", StringComparison.InvariantCulture))
+                    // Google keeps a source line break at a segment's end as an escaped "\r\n",
+                    // "\n" or "\r". AppendLine below re-adds the separator, so a segment still
+                    // carrying its own trailing newline would double into a blank line after
+                    // Regex.Unescape. Strip the trailing newline escape(s) first.
+                    while (s.EndsWith("\\r\\n", StringComparison.Ordinal))
                     {
                         s = s.Remove(s.Length - 4, 4);
+                    }
+                    while (s.EndsWith("\\n", StringComparison.Ordinal) || s.EndsWith("\\r", StringComparison.Ordinal))
+                    {
+                        s = s.Remove(s.Length - 2, 2);
                     }
                     sbAll.AppendLine(s);
                 }
